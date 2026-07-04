@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, Download, ShoppingCart, Truck, Tag, Package } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download, ShoppingCart, Truck, Tag, X } from 'lucide-react'
 import { PageHeader } from '@/components/common/PageHeader'
 import { DataTable } from '@/components/common/DataTable'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
@@ -28,21 +27,20 @@ import { exportCSV, exportExcel, exportPDF } from '@/lib/export'
 interface Config {
   table: 'raw_material_purchases' | 'drink_purchases'
   categoryTable: 'raw_material_categories' | 'drink_categories'
+  itemTable: 'raw_materials' | 'drinks'
   nameField: 'material_name' | 'drink_name'
   titleKey: 'raw_materials' | 'drinks'
 }
 
-interface FormValues {
-  purchase_date: string
-  supplier_id: string
+interface Line {
   category_id: string
   name: string
   quantity: number
   unit: string
   unit_price: number
-  shipping_cost: number
-  remark: string
 }
+
+const emptyLine = (): Line => ({ category_id: '', name: '', quantity: 1, unit: '', unit_price: 0 })
 
 export function PurchaseModule({ config }: { config: Config }) {
   const { t } = useI18n()
@@ -52,31 +50,35 @@ export function PurchaseModule({ config }: { config: Config }) {
   const [loading, setLoading] = useState(true)
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [categories, setCategories] = useState<any[]>([])
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editing, setEditing] = useState<any>(null)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [items, setItems] = useState<any[]>([])
   const [filterCat, setFilterCat] = useState('all')
 
-  // quick-add sub-dialogs
+  // main dialog state
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [date, setDate] = useState(todayISO())
+  const [supplierId, setSupplierId] = useState('')
+  const [lines, setLines] = useState<Line[]>([emptyLine()])
+  const [shipping, setShipping] = useState(0)
+  const [remark, setRemark] = useState('')
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+
+  // sub-dialogs
   const [catDialog, setCatDialog] = useState(false)
   const [catName, setCatName] = useState('')
   const [supDialog, setSupDialog] = useState(false)
   const [supEditId, setSupEditId] = useState<string | null>(null)
   const [supForm, setSupForm] = useState({ name: '', contact_person: '', phone: '' })
 
-  const { register, handleSubmit, reset, setValue, watch } = useForm<FormValues>()
-  const qty = Number(watch('quantity')) || 0
-  const price = Number(watch('unit_price')) || 0
-  const shipping = Number(watch('shipping_cost')) || 0
-  const total = qty * price + shipping
-
   async function loadLookups() {
-    const [{ data: sup }, { data: cat }] = await Promise.all([
+    const [{ data: sup }, { data: cat }, { data: it }] = await Promise.all([
       supabase.from('suppliers').select('id,name,contact_person,phone').eq('is_active', true).order('name'),
       supabase.from(config.categoryTable).select('id,name').order('name'),
+      supabase.from(config.itemTable).select('id,name,category_id,unit').order('name'),
     ])
     setSuppliers(sup ?? [])
     setCategories(cat ?? [])
+    setItems(it ?? [])
   }
 
   async function load() {
@@ -100,53 +102,94 @@ export function PurchaseModule({ config }: { config: Config }) {
     [rows, filterCat],
   )
 
+  const subtotal = lines.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unit_price) || 0), 0)
+  const grandTotal = subtotal + (Number(shipping) || 0)
+
   function openCreate() {
-    setEditing(null)
-    reset({ purchase_date: todayISO(), supplier_id: '', category_id: '', name: '', quantity: 1, unit: '', unit_price: 0, shipping_cost: 0, remark: '' })
+    setEditingId(null)
+    setDate(todayISO())
+    setSupplierId('')
+    setLines([emptyLine()])
+    setShipping(0)
+    setRemark('')
     setDialogOpen(true)
   }
 
   function openEdit(row: any) {
-    setEditing(row)
-    reset({
-      purchase_date: row.purchase_date,
-      supplier_id: row.supplier_id ?? '',
+    setEditingId(row.id)
+    setDate(row.purchase_date)
+    setSupplierId(row.supplier_id ?? '')
+    setLines([{
       category_id: row.category_id ?? '',
       name: row[config.nameField],
       quantity: row.quantity,
       unit: row.unit ?? '',
       unit_price: row.unit_price,
-      shipping_cost: row.shipping_cost ?? 0,
-      remark: row.remark ?? '',
-    })
+    }])
+    setShipping(row.shipping_cost ?? 0)
+    setRemark(row.remark ?? '')
     setDialogOpen(true)
   }
 
-  async function onSubmit(v: FormValues) {
+  function updateLine(i: number, patch: Partial<Line>) {
+    setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
+  }
+
+  /** Make sure an item name exists in the item table for its category. */
+  async function ensureItem(categoryId: string, name: string, unit: string) {
+    const exists = items.some(
+      (it) => it.category_id === categoryId && it.name.trim().toLowerCase() === name.trim().toLowerCase(),
+    )
+    if (!exists && name.trim()) {
+      await supabase.from(config.itemTable).insert({ category_id: categoryId || null, name: name.trim(), unit: unit || null })
+    }
+  }
+
+  async function onSubmit() {
+    const valid = lines.filter((l) => l.name.trim())
+    if (!valid.length) return toast({ title: t('error'), description: t('item_name'), variant: 'error' })
     const { data: { user } } = await supabase.auth.getUser()
-    const payload: any = {
-      purchase_date: v.purchase_date,
-      supplier_id: v.supplier_id || null,
-      category_id: v.category_id || null,
-      [config.nameField]: v.name,
-      quantity: Number(v.quantity),
-      unit: v.unit || null,
-      unit_price: Number(v.unit_price),
-      shipping_cost: Number(v.shipping_cost) || 0,
-      remark: v.remark || null,
-    }
-    let error
-    if (editing) {
-      ;({ error } = await supabase.from(config.table).update(payload).eq('id', editing.id))
+
+    if (editingId) {
+      const l = valid[0]
+      await ensureItem(l.category_id, l.name, l.unit)
+      const { error } = await supabase.from(config.table).update({
+        purchase_date: date,
+        supplier_id: supplierId || null,
+        category_id: l.category_id || null,
+        [config.nameField]: l.name.trim(),
+        quantity: Number(l.quantity),
+        unit: l.unit || null,
+        unit_price: Number(l.unit_price),
+        shipping_cost: Number(shipping) || 0,
+        remark: remark || null,
+      }).eq('id', editingId)
+      if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
     } else {
-      payload.created_by = user?.id
-      ;({ error } = await supabase.from(config.table).insert(payload))
+      // one purchase row per line; shipping applied to the first row only
+      const payloads = await Promise.all(valid.map(async (l, i) => {
+        await ensureItem(l.category_id, l.name, l.unit)
+        return {
+          purchase_date: date,
+          supplier_id: supplierId || null,
+          category_id: l.category_id || null,
+          [config.nameField]: l.name.trim(),
+          quantity: Number(l.quantity),
+          unit: l.unit || null,
+          unit_price: Number(l.unit_price),
+          shipping_cost: i === 0 ? Number(shipping) || 0 : 0,
+          remark: remark || null,
+          created_by: user?.id,
+        }
+      }))
+      const { error } = await supabase.from(config.table).insert(payloads)
+      if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
     }
-    if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
-    logActivity(editing ? 'update' : 'insert', config.table, editing?.id)
+    logActivity(editingId ? 'update' : 'insert', config.table, editingId ?? undefined)
     toast({ title: t('saved') })
     setDialogOpen(false)
     load()
+    loadLookups()
   }
 
   async function confirmDelete() {
@@ -162,10 +205,9 @@ export function PurchaseModule({ config }: { config: Config }) {
   // ---- quick add category ----
   async function saveCategory() {
     if (!catName.trim()) return
-    const { data, error } = await supabase.from(config.categoryTable).insert({ name: catName.trim() }).select('id,name').single()
+    const { error } = await supabase.from(config.categoryTable).insert({ name: catName.trim() })
     if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
     await loadLookups()
-    if (data) setValue('category_id', data.id)
     setCatName('')
     setCatDialog(false)
     toast({ title: t('saved') })
@@ -178,7 +220,7 @@ export function PurchaseModule({ config }: { config: Config }) {
     setSupDialog(true)
   }
   function openSupplierEdit() {
-    const s = suppliers.find((x) => x.id === watch('supplier_id'))
+    const s = suppliers.find((x) => x.id === supplierId)
     if (!s) return
     setSupEditId(s.id)
     setSupForm({ name: s.name ?? '', contact_person: s.contact_person ?? '', phone: s.phone ?? '' })
@@ -193,15 +235,11 @@ export function PurchaseModule({ config }: { config: Config }) {
       phone: supForm.phone || null,
     }
     let res
-    if (supEditId) {
-      res = await supabase.from('suppliers').update(payload).eq('id', supEditId).select('id').single()
-    } else {
-      payload.created_by = user?.id
-      res = await supabase.from('suppliers').insert(payload).select('id').single()
-    }
+    if (supEditId) res = await supabase.from('suppliers').update(payload).eq('id', supEditId).select('id').single()
+    else { payload.created_by = user?.id; res = await supabase.from('suppliers').insert(payload).select('id').single() }
     if (res.error) return toast({ title: t('error'), description: res.error.message, variant: 'error' })
     await loadLookups()
-    if (res.data) setValue('supplier_id', res.data.id)
+    if (res.data) setSupplierId(res.data.id)
     setSupDialog(false)
     toast({ title: t('saved') })
   }
@@ -246,7 +284,7 @@ export function PurchaseModule({ config }: { config: Config }) {
   }
 
   const total_all = filtered.reduce((s, r) => s + Number(r.total_price), 0)
-  const selectedSupplier = suppliers.find((s) => s.id === watch('supplier_id'))
+  const listId = `${config.itemTable}-items`
 
   return (
     <div>
@@ -291,103 +329,143 @@ export function PurchaseModule({ config }: { config: Config }) {
 
       <Card><CardContent className="p-4"><DataTable columns={columns} data={filtered} loading={loading} /></CardContent></Card>
 
-      {/* ---- Main purchase dialog ---- */}
+      {/* ---- Main invoice dialog ---- */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5 text-primary" />
-              {editing ? t('edit') : t('add')} · {t(config.titleKey)}
+              {editingId ? t('edit') : t('add')} · {t(config.titleKey)}
             </DialogTitle>
             <DialogDescription>{t('purchase_form_hint')}</DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {/* Section 1: general */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label>{t('date')}</Label>
-                <Input type="date" {...register('purchase_date', { required: true })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="flex items-center gap-1"><Tag className="h-3.5 w-3.5" />{t('category')}</Label>
-                <div className="flex gap-2">
-                  <Select value={watch('category_id')} onValueChange={(v) => setValue('category_id', v)}>
-                    <SelectTrigger className="flex-1"><SelectValue placeholder="—" /></SelectTrigger>
-                    <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <Button type="button" variant="outline" size="icon" title={t('add_category')} onClick={() => setCatDialog(true)}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-
+          {/* header: date + supplier */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label className="flex items-center gap-1"><Package className="h-3.5 w-3.5" />{t('name')}</Label>
-              <Input {...register('name', { required: true })} placeholder={config.nameField === 'material_name' ? 'ຊື່ວັດຖຸດິບ...' : 'ຊື່ເຄື່ອງດື່ມ...'} />
+              <Label>{t('date')}</Label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
-
-            {/* Section 2: supplier */}
             <div className="space-y-1">
               <Label className="flex items-center gap-1"><Truck className="h-3.5 w-3.5" />{t('supplier')}</Label>
               <div className="flex gap-2">
-                <Select value={watch('supplier_id')} onValueChange={(v) => setValue('supplier_id', v)}>
+                <Select value={supplierId} onValueChange={setSupplierId}>
                   <SelectTrigger className="flex-1"><SelectValue placeholder="—" /></SelectTrigger>
                   <SelectContent>{suppliers.map((s) => (
                     <SelectItem key={s.id} value={s.id}>{s.name}{s.contact_person ? ` · ${s.contact_person}` : ''}</SelectItem>
                   ))}</SelectContent>
                 </Select>
-                {selectedSupplier && (
-                  <Button type="button" variant="outline" size="icon" title={t('edit')} onClick={openSupplierEdit}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
+                {supplierId && (
+                  <Button type="button" variant="outline" size="icon" title={t('edit')} onClick={openSupplierEdit}><Pencil className="h-4 w-4" /></Button>
                 )}
-                <Button type="button" variant="outline" size="icon" title={t('add_supplier')} onClick={openSupplierAdd}>
-                  <Plus className="h-4 w-4" />
-                </Button>
+                <Button type="button" variant="outline" size="icon" title={t('add_supplier')} onClick={openSupplierAdd}><Plus className="h-4 w-4" /></Button>
               </div>
             </div>
+          </div>
 
-            {/* Section 3: quantity + price */}
-            <div className="rounded-xl border bg-muted/30 p-4">
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div className="space-y-1">
-                  <Label>{t('quantity')}</Label>
-                  <Input type="number" step="any" {...register('quantity', { required: true })} />
-                </div>
-                <div className="space-y-1">
-                  <Label>{t('unit')}</Label>
-                  <Input {...register('unit')} placeholder="kg, ຖົງ, ຂວດ" />
-                </div>
-                <div className="space-y-1">
-                  <Label>{t('unit_price')}</Label>
-                  <Input type="number" step="any" {...register('unit_price', { required: true })} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="flex items-center gap-1"><Truck className="h-3.5 w-3.5" />{t('shipping_cost')}</Label>
-                  <Input type="number" step="any" {...register('shipping_cost')} placeholder="0" />
-                </div>
-              </div>
-              <div className="mt-4 flex items-center justify-between rounded-lg bg-primary/10 px-4 py-3">
-                <span className="text-sm font-medium">{t('total_price')}</span>
-                <span className="text-lg font-extrabold text-primary">{formatMoney(total)}</span>
-              </div>
-              <p className="mt-1 text-right text-[11px] text-muted-foreground">
-                ({formatMoney(qty * price)} + {t('shipping_cost')} {formatMoney(shipping)})
-              </p>
+          {/* shared datalist of item names */}
+          <datalist id={listId}>
+            {items.map((it) => <option key={it.id} value={it.name} />)}
+          </datalist>
+
+          {/* line items */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-1"><Tag className="h-3.5 w-3.5" />{t('line_items')}</Label>
+              <Button type="button" variant="outline" size="icon" title={t('add_category')} onClick={() => setCatDialog(true)}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">{t('item_hint')}</p>
+
+            <div className="space-y-2">
+              {lines.map((line, i) => {
+                const lineTotal = (Number(line.quantity) || 0) * (Number(line.unit_price) || 0)
+                const catItems = items.filter((it) => !line.category_id || it.category_id === line.category_id)
+                return (
+                  <div key={i} className="rounded-xl border bg-muted/30 p-3">
+                    <div className="grid grid-cols-12 gap-2">
+                      <div className="col-span-6 sm:col-span-3">
+                        <Label className="text-[10px] text-muted-foreground">{t('category')}</Label>
+                        <Select value={line.category_id} onValueChange={(v) => updateLine(i, { category_id: v })}>
+                          <SelectTrigger className="h-9"><SelectValue placeholder="—" /></SelectTrigger>
+                          <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="col-span-6 sm:col-span-4">
+                        <Label className="text-[10px] text-muted-foreground">{t('item_name')}</Label>
+                        <Input
+                          list={listId}
+                          className="h-9"
+                          value={line.name}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            const match = catItems.find((it) => it.name === val)
+                            updateLine(i, { name: val, unit: match?.unit ?? line.unit })
+                          }}
+                          placeholder={config.nameField === 'material_name' ? 'ຊື່ວັດຖຸດິບ' : 'ຊື່ເຄື່ອງດື່ມ'}
+                        />
+                      </div>
+                      <div className="col-span-3 sm:col-span-1">
+                        <Label className="text-[10px] text-muted-foreground">{t('quantity')}</Label>
+                        <Input type="number" step="any" className="h-9" value={line.quantity} onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })} />
+                      </div>
+                      <div className="col-span-3 sm:col-span-1">
+                        <Label className="text-[10px] text-muted-foreground">{t('unit')}</Label>
+                        <Input className="h-9" value={line.unit} onChange={(e) => updateLine(i, { unit: e.target.value })} placeholder="kg" />
+                      </div>
+                      <div className="col-span-4 sm:col-span-2">
+                        <Label className="text-[10px] text-muted-foreground">{t('unit_price')}</Label>
+                        <Input type="number" step="any" className="h-9" value={line.unit_price} onChange={(e) => updateLine(i, { unit_price: Number(e.target.value) })} />
+                      </div>
+                      <div className="col-span-2 sm:col-span-1 flex items-end justify-end">
+                        {lines.length > 1 && !editingId && (
+                          <Button type="button" variant="ghost" size="icon" className="h-9 w-9" onClick={() => setLines((ls) => ls.filter((_, idx) => idx !== i))}>
+                            <X className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-1 text-right text-xs text-muted-foreground">
+                      {t('line_total')}: <span className="font-semibold text-foreground">{formatMoney(lineTotal)}</span>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
 
-            <div className="space-y-1">
-              <Label>{t('remark')}</Label>
-              <Input {...register('remark')} />
-            </div>
+            {!editingId && (
+              <Button type="button" variant="outline" className="w-full border-dashed" onClick={() => setLines((ls) => [...ls, emptyLine()])}>
+                <Plus className="h-4 w-4" />{t('add_line')}
+              </Button>
+            )}
+          </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
-              <Button type="submit">{t('save')}</Button>
-            </DialogFooter>
-          </form>
+          {/* totals + shipping at the bottom */}
+          <div className="space-y-2 rounded-xl border bg-muted/30 p-4">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{t('subtotal')}</span>
+              <span className="font-medium">{formatMoney(subtotal)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex items-center gap-1 text-muted-foreground"><Truck className="h-3.5 w-3.5" />{t('shipping_cost')}</span>
+              <Input type="number" step="any" className="h-9 w-40 text-right" value={shipping} onChange={(e) => setShipping(Number(e.target.value))} placeholder="0" />
+            </div>
+            <div className="flex items-center justify-between border-t pt-2">
+              <span className="font-medium">{t('grand_total')}</span>
+              <span className="text-lg font-extrabold text-primary">{formatMoney(grandTotal)}</span>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label>{t('remark')}</Label>
+            <Input value={remark} onChange={(e) => setRemark(e.target.value)} />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
+            <Button type="button" onClick={onSubmit}>{t('save')}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -134,6 +134,18 @@ export const translations = {
     en: 'Enter the shop name or the supplier person',
   },
 
+  // ---- invoice / line items ----
+  line_items: { lo: 'ລາຍການ', en: 'Items' },
+  add_line: { lo: 'ເພີ່ມລາຍການ', en: 'Add item' },
+  subtotal: { lo: 'ລວມຍ່ອຍ', en: 'Subtotal' },
+  grand_total: { lo: 'ຍອດລວມທັງໝົດ', en: 'Grand Total' },
+  item_name: { lo: 'ຊື່ລາຍການ', en: 'Item name' },
+  item_hint: {
+    lo: 'ພິມ ຫຼື ເລືອກຊື່ລາຍການ (ຈະຈື່ໄວ້ໃນໝວດອັດຕະໂນມັດ)',
+    en: 'Type or pick an item name (auto-saved to the category)',
+  },
+  line_total: { lo: 'ລວມ', en: 'Total' },
+
   // ---- revenue types ----
   rev_material: { lo: 'ຂາຍວັດຖຸດິບ', en: 'Material Sales' },
   rev_drink: { lo: 'ຂາຍເຄື່ອງດື່ມ', en: 'Drink Sales' },

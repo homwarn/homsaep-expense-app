@@ -6,6 +6,7 @@ export default function Drinks() {
       config={{
         table: 'drink_purchases',
         categoryTable: 'drink_categories',
+        itemTable: 'drinks',
         nameField: 'drink_name',
         titleKey: 'drinks',
       }}

@@ -6,6 +6,7 @@ export default function RawMaterials() {
       config={{
         table: 'raw_material_purchases',
         categoryTable: 'raw_material_categories',
+        itemTable: 'raw_materials',
         nameField: 'material_name',
         titleKey: 'raw_materials',
       }}
