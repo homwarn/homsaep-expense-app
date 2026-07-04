@@ -14,12 +14,12 @@ interface Props {
 }
 
 const tones: Record<string, string> = {
-  primary: 'bg-primary/10 text-primary',
-  emerald: 'bg-emerald-500/10 text-emerald-500',
-  rose: 'bg-rose-500/10 text-rose-500',
-  sky: 'bg-sky-500/10 text-sky-500',
-  violet: 'bg-violet-500/10 text-violet-500',
-  amber: 'bg-amber-500/10 text-amber-500',
+  primary: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  emerald: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+  rose: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+  sky: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
+  violet: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
+  amber: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
 }
 
 export function StatCard({ label, value, icon: Icon, tone = 'primary', growth, loading }: Props) {

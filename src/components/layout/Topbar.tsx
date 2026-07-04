@@ -32,14 +32,14 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   }, [])
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur">
+    <header className="glass sticky top-3 z-20 mx-3 mb-4 mt-3 flex h-16 items-center gap-3 rounded-2xl px-3 sm:px-4 lg:ml-0">
       <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenu}>
         <Menu className="h-5 w-5" />
       </Button>
 
       <button
         onClick={() => setSearchOpen(true)}
-        className="flex h-10 flex-1 max-w-md items-center gap-2 rounded-lg border bg-muted/40 px-3 text-sm text-muted-foreground hover:bg-muted"
+        className="flex h-10 flex-1 max-w-md items-center gap-2 rounded-xl border border-border/60 bg-background/50 px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-background/80"
       >
         <Search className="h-4 w-4" />
         <span className="flex-1 text-left">{t('search_everything')}</span>

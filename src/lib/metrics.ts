@@ -2,8 +2,9 @@ import { supabase } from '@/lib/supabase'
 
 export interface RangeTotals {
   revenue: number
-  foodRevenue: number
+  materialRevenue: number
   drinkRevenue: number
+  otherRevenue: number
   expense: number
   profit: number
 }
@@ -24,17 +25,18 @@ async function sumColumn(
 
 /** Aggregate revenue, expense & profit for a date range (inclusive). */
 export async function getTotals(from: string, to: string): Promise<RangeTotals> {
-  const [foodRevenue, drinkRevenue, rm, dr, otherExp, repairs] = await Promise.all([
-    sumColumn('revenues', 'amount', 'revenue_date', from, to, { col: 'type', val: 'food' }),
+  const [materialRevenue, drinkRevenue, otherRevenue, rm, dr, otherExp, repairs] = await Promise.all([
+    sumColumn('revenues', 'amount', 'revenue_date', from, to, { col: 'type', val: 'material' }),
     sumColumn('revenues', 'amount', 'revenue_date', from, to, { col: 'type', val: 'drink' }),
+    sumColumn('revenues', 'amount', 'revenue_date', from, to, { col: 'type', val: 'other' }),
     sumColumn('raw_material_purchases', 'total_price', 'purchase_date', from, to),
     sumColumn('drink_purchases', 'total_price', 'purchase_date', from, to),
     sumColumn('expenses', 'amount', 'expense_date', from, to),
     sumColumn('repairs', 'total_cost', 'repair_date', from, to),
   ])
-  const revenue = foodRevenue + drinkRevenue
+  const revenue = materialRevenue + drinkRevenue + otherRevenue
   const expense = rm + dr + otherExp + repairs
-  return { revenue, foodRevenue, drinkRevenue, expense, profit: revenue - expense }
+  return { revenue, materialRevenue, drinkRevenue, otherRevenue, expense, profit: revenue - expense }
 }
 
 /** Expense broken down by category for a range → [{name, value}] */

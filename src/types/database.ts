@@ -2,7 +2,7 @@
 // You may regenerate with: supabase gen types typescript --project-id <ref> > src/types/database.ts
 
 export type Role = 'owner' | 'employee'
-export type RevenueType = 'food' | 'drink'
+export type RevenueType = 'material' | 'drink' | 'other'
 
 export interface Profile {
   id: string
@@ -52,6 +52,7 @@ export interface Purchase {
   quantity: number
   unit: string | null
   unit_price: number
+  shipping_cost: number
   total_price: number
   remark: string | null
   created_by: string | null

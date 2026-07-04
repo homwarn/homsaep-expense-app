@@ -12,7 +12,7 @@ export function PageHeader({ title, subtitle, actions, icon }: Props) {
     <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between animate-fade-in">
       <div className="flex items-center gap-3">
         {icon && (
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md shadow-primary/30">
             {icon}
           </div>
         )}

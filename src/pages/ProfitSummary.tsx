@@ -34,9 +34,8 @@ export default function ProfitSummary() {
     })()
   }, [])
 
-  // food profit ≈ food revenue − drink/raw not separable per item, so approximate:
-  // Food profit = food revenue share of profit; we present food & drink revenue-based profit split.
-  const foodProfit = month ? month.foodRevenue - month.expense * (month.revenue ? month.foodRevenue / month.revenue : 0) : 0
+  // Profit split by revenue type (proportional share of total expense).
+  const materialProfit = month ? month.materialRevenue - month.expense * (month.revenue ? month.materialRevenue / month.revenue : 0) : 0
   const drinkProfit = month ? month.drinkRevenue - month.expense * (month.revenue ? month.drinkRevenue / month.revenue : 0) : 0
 
   return (
@@ -50,14 +49,14 @@ export default function ProfitSummary() {
       </div>
 
       <div className="mb-4 grid gap-4 sm:grid-cols-2">
-        <StatCard label={`${t('food_profit')} (${t('monthly')})`} value={formatMoney(foodProfit)} icon={UtensilsCrossed} tone="amber" loading={loading} />
-        <StatCard label={`${t('drink_profit')} (${t('monthly')})`} value={formatMoney(drinkProfit)} icon={CupSoda} tone="violet" loading={loading} />
+        <StatCard label={`${t('rev_material')} (${t('monthly')})`} value={formatMoney(materialProfit)} icon={UtensilsCrossed} tone="amber" loading={loading} />
+        <StatCard label={`${t('rev_drink')} (${t('monthly')})`} value={formatMoney(drinkProfit)} icon={CupSoda} tone="violet" loading={loading} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader><CardTitle>{t('profit_trend')}</CardTitle></CardHeader>
-          <CardContent><TrendChart data={series} dataKey="profit" color="#F97316" type="line" /></CardContent>
+          <CardContent><TrendChart data={series} dataKey="profit" color="#F5C518" type="line" /></CardContent>
         </Card>
         <Card>
           <CardHeader><CardTitle>{t('total_revenue')} vs {t('total_expense')}</CardTitle></CardHeader>
@@ -65,7 +64,7 @@ export default function ProfitSummary() {
             <ComparisonBar data={series} keys={[
               { key: 'revenue', color: '#10B981', name: t('total_revenue') },
               { key: 'expense', color: '#F43F5E', name: t('total_expense') },
-              { key: 'profit', color: '#F97316', name: t('profit') },
+              { key: 'profit', color: '#F5C518', name: t('profit') },
             ]} />
           </CardContent>
         </Card>

@@ -1,5 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect width="64" height="64" rx="16" fill="#F97316"/>
-  <path d="M20 18c0-1.1.9-2 2-2s2 .9 2 2v10a4 4 0 0 1-8 0V18c0-1.1.9-2 2-2M28 16v12a4 4 0 0 0 4 4v14c0 1.1.9 2 2 2s2-.9 2-2V32a4 4 0 0 0 4-4V16" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="32" cy="30" r="2" fill="#fff"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2b2620"/>
+      <stop offset="1" stop-color="#0f0d0a"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="url(#bg)"/>
+  <!-- crossed fork + spoon in brand yellow -->
+  <g stroke="#F5C518" stroke-width="3.2" stroke-linecap="round" fill="none">
+    <!-- fork -->
+    <path d="M24 46 L33 25"/>
+    <path d="M20 15 L20 22 M24 15 L24 22 M28 15 L28 22"/>
+    <path d="M20 22 Q24 27 28 22"/>
+    <!-- spoon -->
+    <path d="M42 46 L38 30"/>
+  </g>
+  <ellipse cx="41" cy="22" rx="6.5" ry="8.5" fill="#F5C518"/>
+  <!-- ladle dots accent -->
+  <circle cx="34" cy="50" r="1.6" fill="#F5C518"/>
+  <circle cx="40" cy="50" r="1.6" fill="#F5C518"/>
 </svg>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, Download, ShoppingCart } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download, ShoppingCart, Truck, Tag, Package } from 'lucide-react'
 import { PageHeader } from '@/components/common/PageHeader'
 import { DataTable } from '@/components/common/DataTable'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -40,6 +40,7 @@ interface FormValues {
   quantity: number
   unit: string
   unit_price: number
+  shipping_cost: number
   remark: string
 }
 
@@ -56,10 +57,27 @@ export function PurchaseModule({ config }: { config: Config }) {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [filterCat, setFilterCat] = useState('all')
 
+  // quick-add sub-dialogs
+  const [catDialog, setCatDialog] = useState(false)
+  const [catName, setCatName] = useState('')
+  const [supDialog, setSupDialog] = useState(false)
+  const [supEditId, setSupEditId] = useState<string | null>(null)
+  const [supForm, setSupForm] = useState({ name: '', contact_person: '', phone: '' })
+
   const { register, handleSubmit, reset, setValue, watch } = useForm<FormValues>()
-  const qty = watch('quantity')
-  const price = watch('unit_price')
-  const total = (Number(qty) || 0) * (Number(price) || 0)
+  const qty = Number(watch('quantity')) || 0
+  const price = Number(watch('unit_price')) || 0
+  const shipping = Number(watch('shipping_cost')) || 0
+  const total = qty * price + shipping
+
+  async function loadLookups() {
+    const [{ data: sup }, { data: cat }] = await Promise.all([
+      supabase.from('suppliers').select('id,name,contact_person,phone').eq('is_active', true).order('name'),
+      supabase.from(config.categoryTable).select('id,name').order('name'),
+    ])
+    setSuppliers(sup ?? [])
+    setCategories(cat ?? [])
+  }
 
   async function load() {
     setLoading(true)
@@ -73,8 +91,7 @@ export function PurchaseModule({ config }: { config: Config }) {
 
   useEffect(() => {
     load()
-    supabase.from('suppliers').select('id,name').eq('is_active', true).then(({ data }) => setSuppliers(data ?? []))
-    supabase.from(config.categoryTable).select('id,name').then(({ data }) => setCategories(data ?? []))
+    loadLookups()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.table])
 
@@ -85,7 +102,7 @@ export function PurchaseModule({ config }: { config: Config }) {
 
   function openCreate() {
     setEditing(null)
-    reset({ purchase_date: todayISO(), supplier_id: '', category_id: '', name: '', quantity: 0, unit: '', unit_price: 0, remark: '' })
+    reset({ purchase_date: todayISO(), supplier_id: '', category_id: '', name: '', quantity: 1, unit: '', unit_price: 0, shipping_cost: 0, remark: '' })
     setDialogOpen(true)
   }
 
@@ -99,6 +116,7 @@ export function PurchaseModule({ config }: { config: Config }) {
       quantity: row.quantity,
       unit: row.unit ?? '',
       unit_price: row.unit_price,
+      shipping_cost: row.shipping_cost ?? 0,
       remark: row.remark ?? '',
     })
     setDialogOpen(true)
@@ -114,6 +132,7 @@ export function PurchaseModule({ config }: { config: Config }) {
       quantity: Number(v.quantity),
       unit: v.unit || null,
       unit_price: Number(v.unit_price),
+      shipping_cost: Number(v.shipping_cost) || 0,
       remark: v.remark || null,
     }
     let error
@@ -140,6 +159,53 @@ export function PurchaseModule({ config }: { config: Config }) {
     load()
   }
 
+  // ---- quick add category ----
+  async function saveCategory() {
+    if (!catName.trim()) return
+    const { data, error } = await supabase.from(config.categoryTable).insert({ name: catName.trim() }).select('id,name').single()
+    if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
+    await loadLookups()
+    if (data) setValue('category_id', data.id)
+    setCatName('')
+    setCatDialog(false)
+    toast({ title: t('saved') })
+  }
+
+  // ---- quick add / edit supplier ----
+  function openSupplierAdd() {
+    setSupEditId(null)
+    setSupForm({ name: '', contact_person: '', phone: '' })
+    setSupDialog(true)
+  }
+  function openSupplierEdit() {
+    const s = suppliers.find((x) => x.id === watch('supplier_id'))
+    if (!s) return
+    setSupEditId(s.id)
+    setSupForm({ name: s.name ?? '', contact_person: s.contact_person ?? '', phone: s.phone ?? '' })
+    setSupDialog(true)
+  }
+  async function saveSupplier() {
+    if (!supForm.name.trim()) return
+    const { data: { user } } = await supabase.auth.getUser()
+    const payload: any = {
+      name: supForm.name.trim(),
+      contact_person: supForm.contact_person || null,
+      phone: supForm.phone || null,
+    }
+    let res
+    if (supEditId) {
+      res = await supabase.from('suppliers').update(payload).eq('id', supEditId).select('id').single()
+    } else {
+      payload.created_by = user?.id
+      res = await supabase.from('suppliers').insert(payload).select('id').single()
+    }
+    if (res.error) return toast({ title: t('error'), description: res.error.message, variant: 'error' })
+    await loadLookups()
+    if (res.data) setValue('supplier_id', res.data.id)
+    setSupDialog(false)
+    toast({ title: t('saved') })
+  }
+
   const columns: ColumnDef<any, unknown>[] = [
     { accessorKey: 'purchase_date', header: t('date'), cell: ({ row }) => formatDate(row.original.purchase_date) },
     { accessorFn: (r) => r.category?.name ?? '-', id: 'category', header: t('category') },
@@ -148,7 +214,8 @@ export function PurchaseModule({ config }: { config: Config }) {
     { accessorKey: 'quantity', header: t('quantity') },
     { accessorKey: 'unit', header: t('unit') },
     { accessorKey: 'unit_price', header: t('unit_price'), cell: ({ row }) => formatMoney(row.original.unit_price) },
-    { accessorKey: 'total_price', header: t('total_price'), cell: ({ row }) => <span className="font-semibold">{formatMoney(row.original.total_price)}</span> },
+    { accessorKey: 'shipping_cost', header: t('shipping_cost'), cell: ({ row }) => formatMoney(row.original.shipping_cost) },
+    { accessorKey: 'total_price', header: t('total_price'), cell: ({ row }) => <span className="font-semibold text-primary">{formatMoney(row.original.total_price)}</span> },
     {
       id: 'actions', header: t('actions'),
       cell: ({ row }) => (
@@ -169,6 +236,7 @@ export function PurchaseModule({ config }: { config: Config }) {
       [t('quantity')]: r.quantity,
       [t('unit')]: r.unit ?? '',
       [t('unit_price')]: r.unit_price,
+      [t('shipping_cost')]: r.shipping_cost ?? 0,
       [t('total_price')]: r.total_price,
     }))
     const fn = config.table
@@ -178,6 +246,7 @@ export function PurchaseModule({ config }: { config: Config }) {
   }
 
   const total_all = filtered.reduce((s, r) => s + Number(r.total_price), 0)
+  const selectedSupplier = suppliers.find((s) => s.id === watch('supplier_id'))
 
   return (
     <div>
@@ -222,56 +291,148 @@ export function PurchaseModule({ config }: { config: Config }) {
 
       <Card><CardContent className="p-4"><DataTable columns={columns} data={filtered} loading={loading} /></CardContent></Card>
 
+      {/* ---- Main purchase dialog ---- */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{editing ? t('edit') : t('add')} · {t(config.titleKey)}</DialogTitle></DialogHeader>
-          <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-2 gap-4">
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5 text-primary" />
+              {editing ? t('edit') : t('add')} · {t(config.titleKey)}
+            </DialogTitle>
+            <DialogDescription>{t('purchase_form_hint')}</DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            {/* Section 1: general */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label>{t('date')}</Label>
+                <Input type="date" {...register('purchase_date', { required: true })} />
+              </div>
+              <div className="space-y-1">
+                <Label className="flex items-center gap-1"><Tag className="h-3.5 w-3.5" />{t('category')}</Label>
+                <div className="flex gap-2">
+                  <Select value={watch('category_id')} onValueChange={(v) => setValue('category_id', v)}>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="—" /></SelectTrigger>
+                    <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Button type="button" variant="outline" size="icon" title={t('add_category')} onClick={() => setCatDialog(true)}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-1">
-              <Label>{t('date')}</Label>
-              <Input type="date" {...register('purchase_date', { required: true })} />
+              <Label className="flex items-center gap-1"><Package className="h-3.5 w-3.5" />{t('name')}</Label>
+              <Input {...register('name', { required: true })} placeholder={config.nameField === 'material_name' ? 'ຊື່ວັດຖຸດິບ...' : 'ຊື່ເຄື່ອງດື່ມ...'} />
             </div>
+
+            {/* Section 2: supplier */}
             <div className="space-y-1">
-              <Label>{t('category')}</Label>
-              <Select value={watch('category_id')} onValueChange={(v) => setValue('category_id', v)}>
-                <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-                <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-              </Select>
+              <Label className="flex items-center gap-1"><Truck className="h-3.5 w-3.5" />{t('supplier')}</Label>
+              <div className="flex gap-2">
+                <Select value={watch('supplier_id')} onValueChange={(v) => setValue('supplier_id', v)}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder="—" /></SelectTrigger>
+                  <SelectContent>{suppliers.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}{s.contact_person ? ` · ${s.contact_person}` : ''}</SelectItem>
+                  ))}</SelectContent>
+                </Select>
+                {selectedSupplier && (
+                  <Button type="button" variant="outline" size="icon" title={t('edit')} onClick={openSupplierEdit}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button type="button" variant="outline" size="icon" title={t('add_supplier')} onClick={openSupplierAdd}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-            <div className="col-span-2 space-y-1">
-              <Label>{t('name')}</Label>
-              <Input {...register('name', { required: true })} />
+
+            {/* Section 3: quantity + price */}
+            <div className="rounded-xl border bg-muted/30 p-4">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div className="space-y-1">
+                  <Label>{t('quantity')}</Label>
+                  <Input type="number" step="any" {...register('quantity', { required: true })} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{t('unit')}</Label>
+                  <Input {...register('unit')} placeholder="kg, ຖົງ, ຂວດ" />
+                </div>
+                <div className="space-y-1">
+                  <Label>{t('unit_price')}</Label>
+                  <Input type="number" step="any" {...register('unit_price', { required: true })} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1"><Truck className="h-3.5 w-3.5" />{t('shipping_cost')}</Label>
+                  <Input type="number" step="any" {...register('shipping_cost')} placeholder="0" />
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between rounded-lg bg-primary/10 px-4 py-3">
+                <span className="text-sm font-medium">{t('total_price')}</span>
+                <span className="text-lg font-extrabold text-primary">{formatMoney(total)}</span>
+              </div>
+              <p className="mt-1 text-right text-[11px] text-muted-foreground">
+                ({formatMoney(qty * price)} + {t('shipping_cost')} {formatMoney(shipping)})
+              </p>
             </div>
+
             <div className="space-y-1">
-              <Label>{t('supplier')}</Label>
-              <Select value={watch('supplier_id')} onValueChange={(v) => setValue('supplier_id', v)}>
-                <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-                <SelectContent>{suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>{t('unit')}</Label>
-              <Input {...register('unit')} placeholder="kg, ຖົງ, ຂວດ..." />
-            </div>
-            <div className="space-y-1">
-              <Label>{t('quantity')}</Label>
-              <Input type="number" step="any" {...register('quantity', { required: true })} />
-            </div>
-            <div className="space-y-1">
-              <Label>{t('unit_price')}</Label>
-              <Input type="number" step="any" {...register('unit_price', { required: true })} />
-            </div>
-            <div className="col-span-2 rounded-lg bg-muted p-3 text-sm">
-              {t('total_price')}: <span className="font-bold text-primary">{formatMoney(total)}</span>
-            </div>
-            <div className="col-span-2 space-y-1">
               <Label>{t('remark')}</Label>
               <Input {...register('remark')} />
             </div>
-            <DialogFooter className="col-span-2">
+
+            <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
               <Button type="submit">{t('save')}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ---- quick-add category ---- */}
+      <Dialog open={catDialog} onOpenChange={setCatDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>{t('add_category')}</DialogTitle></DialogHeader>
+          <div className="space-y-1">
+            <Label>{t('category')}</Label>
+            <Input value={catName} onChange={(e) => setCatName(e.target.value)} autoFocus onKeyDown={(e) => e.key === 'Enter' && saveCategory()} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCatDialog(false)}>{t('cancel')}</Button>
+            <Button onClick={saveCategory}>{t('save')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ---- quick-add / edit supplier ---- */}
+      <Dialog open={supDialog} onOpenChange={setSupDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{supEditId ? t('edit') : t('add_supplier')}</DialogTitle>
+            <DialogDescription>{t('supplier_form_hint')}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>{t('shop_name')}</Label>
+              <Input value={supForm.name} onChange={(e) => setSupForm({ ...supForm, name: e.target.value })} autoFocus placeholder="ຊື່ຮ້ານ/ບໍລິສັດ" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>{t('person_name')}</Label>
+                <Input value={supForm.contact_person} onChange={(e) => setSupForm({ ...supForm, contact_person: e.target.value })} placeholder="ຊື່ຜູ້ຕິດຕໍ່" />
+              </div>
+              <div className="space-y-1">
+                <Label>{t('phone')}</Label>
+                <Input value={supForm.phone} onChange={(e) => setSupForm({ ...supForm, phone: e.target.value })} placeholder="020..." />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSupDialog(false)}>{t('cancel')}</Button>
+            <Button onClick={saveSupplier}>{t('save')}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

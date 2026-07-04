@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, ShoppingCart, CupSoda, Truck, Receipt, TrendingUp,
+  LayoutDashboard, ShoppingCart, CupSoda, Receipt, TrendingUp,
   PieChart, LineChart, FileText, Users, Settings, type LucideIcon,
 } from 'lucide-react'
 import type { TranslationKey } from '@/i18n/translations'
@@ -16,7 +16,6 @@ export const navItems: NavItem[] = [
   { to: '/', labelKey: 'dashboard', icon: LayoutDashboard, financeOnly: true },
   { to: '/raw-materials', labelKey: 'raw_materials', icon: ShoppingCart },
   { to: '/drinks', labelKey: 'drinks', icon: CupSoda },
-  { to: '/suppliers', labelKey: 'suppliers', icon: Truck },
   { to: '/expenses', labelKey: 'other_expenses', icon: Receipt },
   { to: '/revenue', labelKey: 'revenue', icon: TrendingUp, financeOnly: true },
   { to: '/expense-summary', labelKey: 'expense_summary', icon: PieChart, financeOnly: true },

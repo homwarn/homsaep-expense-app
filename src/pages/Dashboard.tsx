@@ -103,7 +103,7 @@ export default function Dashboard() {
         </Card>
         <Card>
           <CardHeader><CardTitle>{t('profit_trend')}</CardTitle></CardHeader>
-          <CardContent><TrendChart data={series} dataKey="profit" color="#F97316" type="line" /></CardContent>
+          <CardContent><TrendChart data={series} dataKey="profit" color="#F5C518" type="line" /></CardContent>
         </Card>
         <Card>
           <CardHeader><CardTitle>{t('expense_by_category')}</CardTitle></CardHeader>

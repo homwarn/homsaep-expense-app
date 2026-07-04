@@ -4,44 +4,52 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 20 14.3% 4.1%;
-    --card: 0 0% 100%;
-    --card-foreground: 20 14.3% 4.1%;
-    --primary: 24 95% 53%; /* orange #F97316 */
-    --primary-foreground: 0 0% 100%;
-    --secondary: 60 4.8% 95.9%;
-    --secondary-foreground: 24 9.8% 10%;
-    --muted: 60 4.8% 95.9%;
-    --muted-foreground: 25 5.3% 44.7%;
-    --accent: 24 90% 96%;
-    --accent-foreground: 24 60% 30%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 60 9.1% 97.8%;
-    --border: 20 5.9% 90%;
-    --input: 20 5.9% 90%;
-    --ring: 24 95% 53%;
-    --radius: 0.9rem;
+    /* Brand: Hom Saep — golden yellow + charcoal black (from logo) */
+    --background: 45 30% 97%;
+    --foreground: 30 12% 12%;
+    --card: 40 33% 100%;
+    --card-foreground: 30 12% 12%;
+    --primary: 47 96% 52%;          /* golden yellow #F5C518 */
+    --primary-foreground: 30 25% 8%; /* near-black text on yellow */
+    --secondary: 40 20% 94%;
+    --secondary-foreground: 30 15% 15%;
+    --muted: 40 18% 93%;
+    --muted-foreground: 30 8% 42%;
+    --accent: 47 90% 90%;
+    --accent-foreground: 40 60% 20%;
+    --destructive: 0 80% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 40 15% 87%;
+    --input: 40 15% 87%;
+    --ring: 47 96% 52%;
+    --radius: 1rem;
+
+    /* glass tokens */
+    --glass-bg: 0 0% 100%;
+    --glass-border: 40 40% 100%;
   }
 
   .dark {
-    --background: 20 14.3% 8%;
-    --foreground: 60 9.1% 97.8%;
-    --card: 24 10% 11%;
-    --card-foreground: 60 9.1% 97.8%;
-    --primary: 24 95% 55%;
-    --primary-foreground: 20 14.3% 4.1%;
-    --secondary: 12 6.5% 15.1%;
-    --secondary-foreground: 60 9.1% 97.8%;
-    --muted: 12 6.5% 15.1%;
-    --muted-foreground: 24 5.4% 63.9%;
-    --accent: 24 40% 18%;
-    --accent-foreground: 24 90% 80%;
-    --destructive: 0 62.8% 45%;
-    --destructive-foreground: 60 9.1% 97.8%;
-    --border: 12 6.5% 18%;
-    --input: 12 6.5% 18%;
-    --ring: 24 95% 55%;
+    --background: 30 10% 7%;
+    --foreground: 45 30% 96%;
+    --card: 30 8% 12%;
+    --card-foreground: 45 30% 96%;
+    --primary: 47 96% 54%;
+    --primary-foreground: 30 25% 8%;
+    --secondary: 30 6% 18%;
+    --secondary-foreground: 45 30% 96%;
+    --muted: 30 6% 17%;
+    --muted-foreground: 40 8% 62%;
+    --accent: 45 40% 20%;
+    --accent-foreground: 47 90% 78%;
+    --destructive: 0 70% 48%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 30 6% 22%;
+    --input: 30 6% 22%;
+    --ring: 47 96% 54%;
+
+    --glass-bg: 30 10% 14%;
+    --glass-border: 45 30% 96%;
   }
 }
 
@@ -49,20 +57,71 @@
   * {
     @apply border-border;
   }
+  html {
+    scroll-behavior: smooth;
+  }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply text-foreground antialiased;
     font-feature-settings: 'rlig' 1, 'calt' 1;
+    background-color: hsl(var(--background));
+    min-height: 100vh;
+    position: relative;
+  }
+  /* Ambient gradient blobs behind the frosted UI */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(50rem 50rem at 12% -8%, hsl(47 96% 55% / 0.28), transparent 60%),
+      radial-gradient(42rem 42rem at 100% 0%, hsl(35 90% 60% / 0.18), transparent 55%),
+      radial-gradient(46rem 46rem at 85% 100%, hsl(47 96% 52% / 0.15), transparent 55%);
+    pointer-events: none;
+  }
+  .dark body::before {
+    background:
+      radial-gradient(50rem 50rem at 12% -8%, hsl(47 96% 52% / 0.16), transparent 60%),
+      radial-gradient(42rem 42rem at 100% 0%, hsl(35 80% 45% / 0.12), transparent 55%),
+      radial-gradient(46rem 46rem at 85% 100%, hsl(47 90% 50% / 0.10), transparent 55%);
+  }
+}
+
+@layer components {
+  /* Frosted-glass surface */
+  .glass {
+    @apply border shadow-lg;
+    background: hsl(var(--glass-bg) / 0.65);
+    border-color: hsl(var(--glass-border) / 0.5);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+  }
+  .dark .glass {
+    background: hsl(var(--glass-bg) / 0.55);
+    border-color: hsl(0 0% 100% / 0.08);
+  }
+  .glass-strong {
+    @apply border shadow-xl;
+    background: hsl(var(--glass-bg) / 0.8);
+    border-color: hsl(var(--glass-border) / 0.6);
+    backdrop-filter: blur(26px) saturate(170%);
+    -webkit-backdrop-filter: blur(26px) saturate(170%);
+  }
+  .dark .glass-strong {
+    background: hsl(var(--glass-bg) / 0.7);
+    border-color: hsl(0 0% 100% / 0.1);
+  }
+  /* subtle brand gradient text */
+  .brand-gradient {
+    background: linear-gradient(120deg, hsl(45 90% 40%), hsl(47 96% 52%));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 }
 
 /* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/30 rounded-full;
-}
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-muted-foreground/50;
-}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-primary/30 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-primary/50; }

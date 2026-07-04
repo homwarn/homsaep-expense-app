@@ -4,7 +4,7 @@ import {
 } from 'recharts'
 
 export const CHART_COLORS = [
-  '#F97316', '#0EA5E9', '#10B981', '#8B5CF6', '#F43F5E',
+  '#F5C518', '#0EA5E9', '#10B981', '#8B5CF6', '#F43F5E',
   '#EAB308', '#14B8A6', '#EC4899', '#6366F1', '#84CC16',
 ]
 
@@ -19,7 +19,7 @@ interface TrendPoint {
 export function TrendChart({
   data,
   dataKey,
-  color = '#F97316',
+  color = '#F5C518',
   type = 'area',
 }: {
   data: TrendPoint[]

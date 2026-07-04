@@ -118,6 +118,26 @@ export const translations = {
   backup: { lo: 'ສຳຮອງຂໍ້ມູນ', en: 'Backup Database' },
   restore: { lo: 'ກູ້ຄືນຂໍ້ມູນ', en: 'Restore Database' },
   no_access: { lo: 'ທ່ານບໍ່ມີສິດເຂົ້າເຖິງໜ້ານີ້', en: 'You do not have access to this page' },
+
+  // ---- purchase form enhancements ----
+  shipping_cost: { lo: 'ຄ່າຂົນສົ່ງ', en: 'Shipping Cost' },
+  add_category: { lo: 'ເພີ່ມໝວດ', en: 'Add Category' },
+  add_supplier: { lo: 'ເພີ່ມຜູ້ສະໜອງ', en: 'Add Supplier' },
+  shop_name: { lo: 'ຊື່ຮ້ານ/ບໍລິສັດ', en: 'Shop / Company Name' },
+  person_name: { lo: 'ຊື່ຜູ້ຕິດຕໍ່', en: 'Contact Person' },
+  purchase_form_hint: {
+    lo: 'ບັນທຶກການຊື້: ເລືອກໝວດ, ໃສ່ຊື່, ຜູ້ສະໜອງ, ຈຳນວນ, ລາຄາ ແລະ ຄ່າຂົນສົ່ງ',
+    en: 'Record a purchase: pick category, name, supplier, quantity, price & shipping',
+  },
+  supplier_form_hint: {
+    lo: 'ໃສ່ຊື່ຮ້ານ ຫຼື ຊື່ບຸກຄົນຜູ້ສະໜອງ',
+    en: 'Enter the shop name or the supplier person',
+  },
+
+  // ---- revenue types ----
+  rev_material: { lo: 'ຂາຍວັດຖຸດິບ', en: 'Material Sales' },
+  rev_drink: { lo: 'ຂາຍເຄື່ອງດື່ມ', en: 'Drink Sales' },
+  rev_other: { lo: 'ອື່ນໆ', en: 'Other' },
 } as const
 
 export type TranslationKey = keyof typeof translations
