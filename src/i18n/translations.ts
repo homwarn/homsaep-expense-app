@@ -134,6 +134,14 @@ export const translations = {
     en: 'Enter the shop name or the supplier person',
   },
 
+  // ---- master data menu ----
+  master_data: { lo: 'ຂໍ້ມູນຫຼັກ', en: 'Master Data' },
+  categories: { lo: 'ໝວດ', en: 'Categories' },
+  items: { lo: 'ລາຍການ', en: 'Items' },
+  add_item: { lo: 'ເພີ່ມລາຍການ', en: 'Add Item' },
+  raw_materials_data: { lo: 'ວັດຖຸດິບ', en: 'Raw Materials' },
+  drinks_data: { lo: 'ເຄື່ອງດື່ມ', en: 'Drinks' },
+
   // ---- invoice / line items ----
   line_items: { lo: 'ລາຍການ', en: 'Items' },
   add_line: { lo: 'ເພີ່ມລາຍການ', en: 'Add item' },

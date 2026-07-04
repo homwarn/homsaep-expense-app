@@ -42,7 +42,7 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
         supabase.from('expenses').select('id,title,amount,expense_date').ilike('title', like).limit(4),
       ])
       const out: Result[] = []
-      sup.data?.forEach((s: any) => out.push({ label: s.name, sub: `${t('suppliers')} · ${s.phone ?? ''}`, to: '/suppliers' }))
+      sup.data?.forEach((s: any) => out.push({ label: s.name, sub: `${t('suppliers')} · ${s.phone ?? ''}`, to: '/master-data' }))
       rm.data?.forEach((r: any) => out.push({ label: r.material_name, sub: `${t('raw_materials')} · ${formatMoney(r.total_price)} · ${formatDate(r.purchase_date)}`, to: '/raw-materials' }))
       dr.data?.forEach((d: any) => out.push({ label: d.drink_name, sub: `${t('drinks')} · ${formatMoney(d.total_price)} · ${formatDate(d.purchase_date)}`, to: '/drinks' }))
       ex.data?.forEach((e: any) => out.push({ label: e.title, sub: `${t('other_expenses')} · ${formatMoney(e.amount)} · ${formatDate(e.expense_date)}`, to: '/expenses' }))

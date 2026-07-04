@@ -8,7 +8,7 @@ const Login = lazy(() => import('@/pages/Login'))
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const RawMaterials = lazy(() => import('@/pages/purchases/RawMaterials'))
 const Drinks = lazy(() => import('@/pages/purchases/Drinks'))
-const Suppliers = lazy(() => import('@/pages/Suppliers'))
+const MasterData = lazy(() => import('@/pages/MasterData'))
 const OtherExpenses = lazy(() => import('@/pages/expenses/OtherExpenses'))
 const Revenue = lazy(() => import('@/pages/revenue/Revenue'))
 const ExpenseSummary = lazy(() => import('@/pages/ExpenseSummary'))
@@ -39,7 +39,7 @@ export default function App() {
           <Route path="/" element={<ProtectedRoute requireFinance><Dashboard /></ProtectedRoute>} />
           <Route path="/raw-materials" element={<RawMaterials />} />
           <Route path="/drinks" element={<Drinks />} />
-          <Route path="/suppliers" element={<Suppliers />} />
+          <Route path="/master-data" element={<MasterData />} />
           <Route path="/expenses" element={<OtherExpenses />} />
           <Route path="/revenue" element={<ProtectedRoute requireFinance><Revenue /></ProtectedRoute>} />
           <Route path="/expense-summary" element={<ProtectedRoute requireFinance><ExpenseSummary /></ProtectedRoute>} />

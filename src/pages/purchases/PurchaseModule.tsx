@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, Download, ShoppingCart, Truck, Tag, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download, ShoppingCart, Truck, X } from 'lucide-react'
 import { PageHeader } from '@/components/common/PageHeader'
 import { DataTable } from '@/components/common/DataTable'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
@@ -53,7 +53,6 @@ export function PurchaseModule({ config }: { config: Config }) {
   const [items, setItems] = useState<any[]>([])
   const [filterCat, setFilterCat] = useState('all')
 
-  // main dialog state
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [date, setDate] = useState(todayISO())
@@ -63,16 +62,9 @@ export function PurchaseModule({ config }: { config: Config }) {
   const [remark, setRemark] = useState('')
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
-  // sub-dialogs
-  const [catDialog, setCatDialog] = useState(false)
-  const [catName, setCatName] = useState('')
-  const [supDialog, setSupDialog] = useState(false)
-  const [supEditId, setSupEditId] = useState<string | null>(null)
-  const [supForm, setSupForm] = useState({ name: '', contact_person: '', phone: '' })
-
   async function loadLookups() {
     const [{ data: sup }, { data: cat }, { data: it }] = await Promise.all([
-      supabase.from('suppliers').select('id,name,contact_person,phone').eq('is_active', true).order('name'),
+      supabase.from('suppliers').select('id,name,contact_person').eq('is_active', true).order('name'),
       supabase.from(config.categoryTable).select('id,name').order('name'),
       supabase.from(config.itemTable).select('id,name,category_id,unit').order('name'),
     ])
@@ -107,39 +99,24 @@ export function PurchaseModule({ config }: { config: Config }) {
 
   function openCreate() {
     setEditingId(null)
-    setDate(todayISO())
-    setSupplierId('')
-    setLines([emptyLine()])
-    setShipping(0)
-    setRemark('')
+    setDate(todayISO()); setSupplierId(''); setLines([emptyLine()]); setShipping(0); setRemark('')
     setDialogOpen(true)
   }
-
   function openEdit(row: any) {
     setEditingId(row.id)
     setDate(row.purchase_date)
     setSupplierId(row.supplier_id ?? '')
-    setLines([{
-      category_id: row.category_id ?? '',
-      name: row[config.nameField],
-      quantity: row.quantity,
-      unit: row.unit ?? '',
-      unit_price: row.unit_price,
-    }])
+    setLines([{ category_id: row.category_id ?? '', name: row[config.nameField], quantity: row.quantity, unit: row.unit ?? '', unit_price: row.unit_price }])
     setShipping(row.shipping_cost ?? 0)
     setRemark(row.remark ?? '')
     setDialogOpen(true)
   }
-
   function updateLine(i: number, patch: Partial<Line>) {
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
   }
 
-  /** Make sure an item name exists in the item table for its category. */
   async function ensureItem(categoryId: string, name: string, unit: string) {
-    const exists = items.some(
-      (it) => it.category_id === categoryId && it.name.trim().toLowerCase() === name.trim().toLowerCase(),
-    )
+    const exists = items.some((it) => it.category_id === categoryId && it.name.trim().toLowerCase() === name.trim().toLowerCase())
     if (!exists && name.trim()) {
       await supabase.from(config.itemTable).insert({ category_id: categoryId || null, name: name.trim(), unit: unit || null })
     }
@@ -154,32 +131,19 @@ export function PurchaseModule({ config }: { config: Config }) {
       const l = valid[0]
       await ensureItem(l.category_id, l.name, l.unit)
       const { error } = await supabase.from(config.table).update({
-        purchase_date: date,
-        supplier_id: supplierId || null,
-        category_id: l.category_id || null,
-        [config.nameField]: l.name.trim(),
-        quantity: Number(l.quantity),
-        unit: l.unit || null,
-        unit_price: Number(l.unit_price),
-        shipping_cost: Number(shipping) || 0,
-        remark: remark || null,
+        purchase_date: date, supplier_id: supplierId || null, category_id: l.category_id || null,
+        [config.nameField]: l.name.trim(), quantity: Number(l.quantity), unit: l.unit || null,
+        unit_price: Number(l.unit_price), shipping_cost: Number(shipping) || 0, remark: remark || null,
       }).eq('id', editingId)
       if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
     } else {
-      // one purchase row per line; shipping applied to the first row only
       const payloads = await Promise.all(valid.map(async (l, i) => {
         await ensureItem(l.category_id, l.name, l.unit)
         return {
-          purchase_date: date,
-          supplier_id: supplierId || null,
-          category_id: l.category_id || null,
-          [config.nameField]: l.name.trim(),
-          quantity: Number(l.quantity),
-          unit: l.unit || null,
-          unit_price: Number(l.unit_price),
-          shipping_cost: i === 0 ? Number(shipping) || 0 : 0,
-          remark: remark || null,
-          created_by: user?.id,
+          purchase_date: date, supplier_id: supplierId || null, category_id: l.category_id || null,
+          [config.nameField]: l.name.trim(), quantity: Number(l.quantity), unit: l.unit || null,
+          unit_price: Number(l.unit_price), shipping_cost: i === 0 ? Number(shipping) || 0 : 0,
+          remark: remark || null, created_by: user?.id,
         }
       }))
       const { error } = await supabase.from(config.table).insert(payloads)
@@ -188,8 +152,7 @@ export function PurchaseModule({ config }: { config: Config }) {
     logActivity(editingId ? 'update' : 'insert', config.table, editingId ?? undefined)
     toast({ title: t('saved') })
     setDialogOpen(false)
-    load()
-    loadLookups()
+    load(); loadLookups()
   }
 
   async function confirmDelete() {
@@ -197,51 +160,7 @@ export function PurchaseModule({ config }: { config: Config }) {
     const { error } = await supabase.from(config.table).delete().eq('id', deleteId)
     if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
     logActivity('delete', config.table, deleteId)
-    toast({ title: t('deleted') })
-    setDeleteId(null)
-    load()
-  }
-
-  // ---- quick add category ----
-  async function saveCategory() {
-    if (!catName.trim()) return
-    const { error } = await supabase.from(config.categoryTable).insert({ name: catName.trim() })
-    if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
-    await loadLookups()
-    setCatName('')
-    setCatDialog(false)
-    toast({ title: t('saved') })
-  }
-
-  // ---- quick add / edit supplier ----
-  function openSupplierAdd() {
-    setSupEditId(null)
-    setSupForm({ name: '', contact_person: '', phone: '' })
-    setSupDialog(true)
-  }
-  function openSupplierEdit() {
-    const s = suppliers.find((x) => x.id === supplierId)
-    if (!s) return
-    setSupEditId(s.id)
-    setSupForm({ name: s.name ?? '', contact_person: s.contact_person ?? '', phone: s.phone ?? '' })
-    setSupDialog(true)
-  }
-  async function saveSupplier() {
-    if (!supForm.name.trim()) return
-    const { data: { user } } = await supabase.auth.getUser()
-    const payload: any = {
-      name: supForm.name.trim(),
-      contact_person: supForm.contact_person || null,
-      phone: supForm.phone || null,
-    }
-    let res
-    if (supEditId) res = await supabase.from('suppliers').update(payload).eq('id', supEditId).select('id').single()
-    else { payload.created_by = user?.id; res = await supabase.from('suppliers').insert(payload).select('id').single() }
-    if (res.error) return toast({ title: t('error'), description: res.error.message, variant: 'error' })
-    await loadLookups()
-    if (res.data) setSupplierId(res.data.id)
-    setSupDialog(false)
-    toast({ title: t('saved') })
+    toast({ title: t('deleted') }); setDeleteId(null); load()
   }
 
   const columns: ColumnDef<any, unknown>[] = [
@@ -267,15 +186,9 @@ export function PurchaseModule({ config }: { config: Config }) {
 
   function doExport(kind: 'csv' | 'xlsx' | 'pdf') {
     const data = filtered.map((r) => ({
-      [t('date')]: r.purchase_date,
-      [t('category')]: r.category?.name ?? '',
-      [t('name')]: r[config.nameField],
-      [t('supplier')]: r.supplier?.name ?? '',
-      [t('quantity')]: r.quantity,
-      [t('unit')]: r.unit ?? '',
-      [t('unit_price')]: r.unit_price,
-      [t('shipping_cost')]: r.shipping_cost ?? 0,
-      [t('total_price')]: r.total_price,
+      [t('date')]: r.purchase_date, [t('category')]: r.category?.name ?? '', [t('name')]: r[config.nameField],
+      [t('supplier')]: r.supplier?.name ?? '', [t('quantity')]: r.quantity, [t('unit')]: r.unit ?? '',
+      [t('unit_price')]: r.unit_price, [t('shipping_cost')]: r.shipping_cost ?? 0, [t('total_price')]: r.total_price,
     }))
     const fn = config.table
     if (kind === 'csv') exportCSV(data, fn)
@@ -329,9 +242,9 @@ export function PurchaseModule({ config }: { config: Config }) {
 
       <Card><CardContent className="p-4"><DataTable columns={columns} data={filtered} loading={loading} /></CardContent></Card>
 
-      {/* ---- Main invoice dialog ---- */}
+      {/* ---- Invoice dialog ---- */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5 text-primary" />
@@ -340,7 +253,6 @@ export function PurchaseModule({ config }: { config: Config }) {
             <DialogDescription>{t('purchase_form_hint')}</DialogDescription>
           </DialogHeader>
 
-          {/* header: date + supplier */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <Label>{t('date')}</Label>
@@ -348,90 +260,67 @@ export function PurchaseModule({ config }: { config: Config }) {
             </div>
             <div className="space-y-1">
               <Label className="flex items-center gap-1"><Truck className="h-3.5 w-3.5" />{t('supplier')}</Label>
-              <div className="flex gap-2">
-                <Select value={supplierId} onValueChange={setSupplierId}>
-                  <SelectTrigger className="flex-1"><SelectValue placeholder="—" /></SelectTrigger>
-                  <SelectContent>{suppliers.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}{s.contact_person ? ` · ${s.contact_person}` : ''}</SelectItem>
-                  ))}</SelectContent>
-                </Select>
-                {supplierId && (
-                  <Button type="button" variant="outline" size="icon" title={t('edit')} onClick={openSupplierEdit}><Pencil className="h-4 w-4" /></Button>
-                )}
-                <Button type="button" variant="outline" size="icon" title={t('add_supplier')} onClick={openSupplierAdd}><Plus className="h-4 w-4" /></Button>
-              </div>
+              <Select value={supplierId} onValueChange={setSupplierId}>
+                <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectContent>{suppliers.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}{s.contact_person ? ` · ${s.contact_person}` : ''}</SelectItem>
+                ))}</SelectContent>
+              </Select>
             </div>
           </div>
 
-          {/* shared datalist of item names */}
           <datalist id={listId}>
             {items.map((it) => <option key={it.id} value={it.name} />)}
           </datalist>
 
-          {/* line items */}
+          {/* line-item card table */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="flex items-center gap-1"><Tag className="h-3.5 w-3.5" />{t('line_items')}</Label>
-              <Button type="button" variant="outline" size="icon" title={t('add_category')} onClick={() => setCatDialog(true)}>
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            <p className="text-[11px] text-muted-foreground">{t('item_hint')}</p>
-
-            <div className="space-y-2">
-              {lines.map((line, i) => {
-                const lineTotal = (Number(line.quantity) || 0) * (Number(line.unit_price) || 0)
-                const catItems = items.filter((it) => !line.category_id || it.category_id === line.category_id)
-                return (
-                  <div key={i} className="rounded-xl border bg-muted/30 p-3">
-                    <div className="grid grid-cols-12 gap-2">
-                      <div className="col-span-6 sm:col-span-3">
-                        <Label className="text-[10px] text-muted-foreground">{t('category')}</Label>
-                        <Select value={line.category_id} onValueChange={(v) => updateLine(i, { category_id: v })}>
-                          <SelectTrigger className="h-9"><SelectValue placeholder="—" /></SelectTrigger>
-                          <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-6 sm:col-span-4">
-                        <Label className="text-[10px] text-muted-foreground">{t('item_name')}</Label>
-                        <Input
-                          list={listId}
-                          className="h-9"
-                          value={line.name}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            const match = catItems.find((it) => it.name === val)
-                            updateLine(i, { name: val, unit: match?.unit ?? line.unit })
-                          }}
-                          placeholder={config.nameField === 'material_name' ? 'ຊື່ວັດຖຸດິບ' : 'ຊື່ເຄື່ອງດື່ມ'}
-                        />
-                      </div>
-                      <div className="col-span-3 sm:col-span-1">
-                        <Label className="text-[10px] text-muted-foreground">{t('quantity')}</Label>
-                        <Input type="number" step="any" className="h-9" value={line.quantity} onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })} />
-                      </div>
-                      <div className="col-span-3 sm:col-span-1">
-                        <Label className="text-[10px] text-muted-foreground">{t('unit')}</Label>
-                        <Input className="h-9" value={line.unit} onChange={(e) => updateLine(i, { unit: e.target.value })} placeholder="kg" />
-                      </div>
-                      <div className="col-span-4 sm:col-span-2">
-                        <Label className="text-[10px] text-muted-foreground">{t('unit_price')}</Label>
-                        <Input type="number" step="any" className="h-9" value={line.unit_price} onChange={(e) => updateLine(i, { unit_price: Number(e.target.value) })} />
-                      </div>
-                      <div className="col-span-2 sm:col-span-1 flex items-end justify-end">
-                        {lines.length > 1 && !editingId && (
-                          <Button type="button" variant="ghost" size="icon" className="h-9 w-9" onClick={() => setLines((ls) => ls.filter((_, idx) => idx !== i))}>
-                            <X className="h-4 w-4 text-destructive" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="mt-1 text-right text-xs text-muted-foreground">
-                      {t('line_total')}: <span className="font-semibold text-foreground">{formatMoney(lineTotal)}</span>
-                    </div>
-                  </div>
-                )
-              })}
+            <Label>{t('line_items')}</Label>
+            <div className="overflow-x-auto rounded-xl border">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead className="bg-muted/50 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-2 py-2 text-left font-medium">{t('category')}</th>
+                    <th className="px-2 py-2 text-left font-medium">{t('item_name')}</th>
+                    <th className="px-2 py-2 text-left font-medium">{t('quantity')}</th>
+                    <th className="px-2 py-2 text-left font-medium">{t('unit')}</th>
+                    <th className="px-2 py-2 text-left font-medium">{t('unit_price')}</th>
+                    <th className="px-2 py-2 text-right font-medium">{t('line_total')}</th>
+                    <th className="w-8" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((line, i) => {
+                    const lineTotal = (Number(line.quantity) || 0) * (Number(line.unit_price) || 0)
+                    const catItems = items.filter((it) => !line.category_id || it.category_id === line.category_id)
+                    return (
+                      <tr key={i} className="border-t align-middle">
+                        <td className="px-2 py-1.5">
+                          <Select value={line.category_id} onValueChange={(v) => updateLine(i, { category_id: v })}>
+                            <SelectTrigger className="h-9 w-36"><SelectValue placeholder="—" /></SelectTrigger>
+                            <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <Input list={listId} className="h-9 min-w-[9rem]" value={line.name}
+                            onChange={(e) => { const val = e.target.value; const m = catItems.find((it) => it.name === val); updateLine(i, { name: val, unit: m?.unit ?? line.unit }) }} />
+                        </td>
+                        <td className="px-2 py-1.5"><Input type="number" step="any" className="h-9 w-20" value={line.quantity} onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })} /></td>
+                        <td className="px-2 py-1.5"><Input className="h-9 w-20" value={line.unit} onChange={(e) => updateLine(i, { unit: e.target.value })} placeholder="kg" /></td>
+                        <td className="px-2 py-1.5"><Input type="number" step="any" className="h-9 w-28" value={line.unit_price} onChange={(e) => updateLine(i, { unit_price: Number(e.target.value) })} /></td>
+                        <td className="px-2 py-1.5 text-right font-medium">{formatMoney(lineTotal)}</td>
+                        <td className="px-1">
+                          {lines.length > 1 && !editingId && (
+                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setLines((ls) => ls.filter((_, idx) => idx !== i))}>
+                              <X className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
 
             {!editingId && (
@@ -441,7 +330,7 @@ export function PurchaseModule({ config }: { config: Config }) {
             )}
           </div>
 
-          {/* totals + shipping at the bottom */}
+          {/* totals + shipping */}
           <div className="space-y-2 rounded-xl border bg-muted/30 p-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">{t('subtotal')}</span>
@@ -465,51 +354,6 @@ export function PurchaseModule({ config }: { config: Config }) {
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
             <Button type="button" onClick={onSubmit}>{t('save')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ---- quick-add category ---- */}
-      <Dialog open={catDialog} onOpenChange={setCatDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>{t('add_category')}</DialogTitle></DialogHeader>
-          <div className="space-y-1">
-            <Label>{t('category')}</Label>
-            <Input value={catName} onChange={(e) => setCatName(e.target.value)} autoFocus onKeyDown={(e) => e.key === 'Enter' && saveCategory()} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCatDialog(false)}>{t('cancel')}</Button>
-            <Button onClick={saveCategory}>{t('save')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ---- quick-add / edit supplier ---- */}
-      <Dialog open={supDialog} onOpenChange={setSupDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{supEditId ? t('edit') : t('add_supplier')}</DialogTitle>
-            <DialogDescription>{t('supplier_form_hint')}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label>{t('shop_name')}</Label>
-              <Input value={supForm.name} onChange={(e) => setSupForm({ ...supForm, name: e.target.value })} autoFocus placeholder="ຊື່ຮ້ານ/ບໍລິສັດ" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{t('person_name')}</Label>
-                <Input value={supForm.contact_person} onChange={(e) => setSupForm({ ...supForm, contact_person: e.target.value })} placeholder="ຊື່ຜູ້ຕິດຕໍ່" />
-              </div>
-              <div className="space-y-1">
-                <Label>{t('phone')}</Label>
-                <Input value={supForm.phone} onChange={(e) => setSupForm({ ...supForm, phone: e.target.value })} placeholder="020..." />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSupDialog(false)}>{t('cancel')}</Button>
-            <Button onClick={saveSupplier}>{t('save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
