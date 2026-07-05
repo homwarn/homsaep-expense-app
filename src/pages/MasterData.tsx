@@ -244,7 +244,7 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
   // item state
   const [itemOpen, setItemOpen] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
-  const [itemForm, setItemForm] = useState<any>({ name: '', category_id: '', unit: '', price: 0 })
+  const [itemForm, setItemForm] = useState<any>({ name: '', category_id: '', unit: '', price: 0, currency: 'LAK', exchange_rate: 1 })
   const [delItem, setDelItem] = useState<string | null>(null)
 
   async function load() {
@@ -276,11 +276,12 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
   const shownItems = selectedCat ? items.filter((it) => it.category_id === selectedCat) : items
   const selectedCatName = categories.find((c) => c.id === selectedCat)?.name
 
-  function openItemCreate() { setEditItem(null); setItemForm({ name: '', category_id: selectedCat || categories[0]?.id || '', unit: '', price: 0 }); setItemOpen(true) }
-  function openItemEdit(it: any) { setEditItem(it); setItemForm({ name: it.name, category_id: it.category_id ?? '', unit: it.unit ?? '', price: it.price ?? 0 }); setItemOpen(true) }
+  function openItemCreate() { setEditItem(null); setItemForm({ name: '', category_id: selectedCat || categories[0]?.id || '', unit: '', price: 0, currency: 'LAK', exchange_rate: 1 }); setItemOpen(true) }
+  function openItemEdit(it: any) { setEditItem(it); setItemForm({ name: it.name, category_id: it.category_id ?? '', unit: it.unit ?? '', price: it.price ?? 0, currency: it.currency ?? 'LAK', exchange_rate: it.exchange_rate ?? 1 }); setItemOpen(true) }
   async function saveItem() {
     if (!itemForm.name.trim()) return
-    const payload = { name: itemForm.name.trim(), category_id: itemForm.category_id || null, unit: itemForm.unit || null, price: Number(itemForm.price) || 0 }
+    const cur = itemForm.currency || 'LAK'
+    const payload = { name: itemForm.name.trim(), category_id: itemForm.category_id || null, unit: itemForm.unit || null, price: Number(itemForm.price) || 0, currency: cur, exchange_rate: cur === 'LAK' ? 1 : Number(itemForm.exchange_rate) || 1 }
     let error
     if (editItem) ({ error } = await supabase.from(itemTable).update(payload).eq('id', editItem.id))
     else ({ error } = await supabase.from(itemTable).insert(payload))
@@ -359,7 +360,11 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
                     <td className="px-4 py-2 font-medium">{it.name}</td>
                     <td className="px-4 py-2">{it.category?.name ?? '-'}</td>
                     <td className="px-4 py-2">{it.unit ?? '-'}</td>
-                    <td className="px-4 py-2 text-right">{formatMoney(it.price ?? 0)}</td>
+                    <td className="px-4 py-2 text-right">
+                      {it.currency && it.currency !== 'LAK'
+                        ? <>{formatMoney(it.price ?? 0)} {it.currency}<span className="block text-[11px] text-muted-foreground">≈ {formatMoney((it.price ?? 0) * (it.exchange_rate ?? 1))} LAK</span></>
+                        : formatMoney(it.price ?? 0)}
+                    </td>
                     <td className="px-4 py-2 text-right">
                       <Button variant="ghost" size="icon" onClick={() => openItemEdit(it)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" onClick={() => setDelItem(it.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
@@ -386,8 +391,27 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1"><Label>{t('unit')}</Label><Input value={itemForm.unit} onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })} placeholder="kg, ຖົງ" /></div>
-              <div className="space-y-1"><Label>{t('price')}</Label><Input type="number" step="any" value={itemForm.price} onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })} placeholder="0" /></div>
+              <div className="space-y-1"><Label>{t('currency')}</Label>
+                <Select value={itemForm.currency} onValueChange={(v) => setItemForm({ ...itemForm, currency: v, exchange_rate: v === 'LAK' ? 1 : itemForm.exchange_rate })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LAK">LAK ₭</SelectItem>
+                    <SelectItem value="THB">THB ฿</SelectItem>
+                    <SelectItem value="USD">USD $</SelectItem>
+                    <SelectItem value="CNY">CNY ¥</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1"><Label>{t('price')} ({itemForm.currency})</Label><Input type="number" step="any" value={itemForm.price} onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })} placeholder="0" /></div>
+              {itemForm.currency !== 'LAK' && (
+                <div className="space-y-1"><Label>{t('exchange_rate')}</Label><Input type="number" step="any" value={itemForm.exchange_rate} onChange={(e) => setItemForm({ ...itemForm, exchange_rate: e.target.value })} placeholder="1" /></div>
+              )}
+            </div>
+            {itemForm.currency !== 'LAK' && (
+              <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm">{t('price_lak')}: <span className="font-semibold text-primary">{formatMoney((Number(itemForm.price) || 0) * (Number(itemForm.exchange_rate) || 0))} LAK</span></p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setItemOpen(false)}>{t('cancel')}</Button>

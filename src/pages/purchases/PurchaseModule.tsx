@@ -7,6 +7,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription,
@@ -61,7 +62,11 @@ export function PurchaseModule({ config }: { config: Config }) {
   const [shipping, setShipping] = useState(0)
   const [remark, setRemark] = useState('')
   const [lumpAmount, setLumpAmount] = useState(0)
+  const [payMethod, setPayMethod] = useState('cash')
+  const [payStatus, setPayStatus] = useState('paid')
   const [deleteId, setDeleteId] = useState<string | null>(null)
+
+  const lakPrice = (it: any) => (it?.currency && it.currency !== 'LAK' ? (Number(it.price) || 0) * (Number(it.exchange_rate) || 1) : (Number(it?.price) || 0))
 
   const [mappedIds, setMappedIds] = useState<Set<string>>(new Set())
   const [picked, setPicked] = useState<Record<string, Picked>>({})
@@ -75,7 +80,7 @@ export function PurchaseModule({ config }: { config: Config }) {
     const [{ data: sup }, { data: cat }, { data: it }] = await Promise.all([
       supabase.from('suppliers').select('id,name,contact_person').eq('is_active', true).order('name'),
       supabase.from(config.categoryTable).select('id,name').order('name'),
-      supabase.from(config.itemTable).select(`id,name,category_id,unit,price, category:${config.categoryTable}(name)`).order('name'),
+      supabase.from(config.itemTable).select(`id,name,category_id,unit,price,currency,exchange_rate, category:${config.categoryTable}(name)`).order('name'),
     ])
     setSuppliers(sup ?? [])
     setCategories(cat ?? [])
@@ -131,11 +136,13 @@ export function PurchaseModule({ config }: { config: Config }) {
   function resetForm() {
     setEditingId(null); setMode('items'); setDate(todayISO()); setSupplierId('')
     setShipping(0); setRemark(''); setLumpAmount(0); setPicked({}); setCustomLines([])
+    setPayMethod('cash'); setPayStatus('paid')
   }
   function openCreate() { resetForm(); setDialogOpen(true) }
   function openEdit(row: any) {
     setEditingId(row.id); setMode('items'); setDate(row.purchase_date); setSupplierId(row.supplier_id ?? '')
     setShipping(row.shipping_cost ?? 0); setRemark(row.remark ?? ''); setLumpAmount(0); setPicked({})
+    setPayMethod(row.payment_method ?? 'cash'); setPayStatus(row.payment_status ?? 'paid')
     setCustomLines([{ category_id: row.category_id ?? '', name: row[config.nameField], quantity: row.quantity, unit: row.unit ?? '', unit_price: row.unit_price }])
     setDialogOpen(true)
   }
@@ -144,7 +151,7 @@ export function PurchaseModule({ config }: { config: Config }) {
     setPicked((p) => {
       const next = { ...p }
       if (next[it.id]) delete next[it.id]
-      else next[it.id] = { quantity: 1, unit: it.unit ?? '', unit_price: Number(it.price) || 0 }
+      else next[it.id] = { quantity: 1, unit: it.unit ?? '', unit_price: lakPrice(it) }
       return next
     })
   }
@@ -174,6 +181,7 @@ export function PurchaseModule({ config }: { config: Config }) {
         purchase_date: date, supplier_id: supplierId || null, category_id: l.category_id || null,
         [config.nameField]: l.name.trim(), quantity: Number(l.quantity), unit: l.unit || null,
         unit_price: Number(l.unit_price), shipping_cost: Number(shipping) || 0, remark: remark || null,
+        payment_method: payMethod, payment_status: payStatus,
       }).eq('id', editingId)
       if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
       logActivity('update', config.table, editingId)
@@ -187,7 +195,8 @@ export function PurchaseModule({ config }: { config: Config }) {
       const { error } = await supabase.from(config.table).insert({
         purchase_date: date, supplier_id: supplierId || null, category_id: null,
         [config.nameField]: remark.trim() || t('mode_total'), quantity: 1, unit: null,
-        unit_price: Number(lumpAmount), shipping_cost: Number(shipping) || 0, remark: remark || null, created_by: user?.id,
+        unit_price: Number(lumpAmount), shipping_cost: Number(shipping) || 0, remark: remark || null,
+        payment_method: payMethod, payment_status: payStatus, created_by: user?.id,
       })
       if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
       logActivity('insert', config.table)
@@ -209,7 +218,8 @@ export function PurchaseModule({ config }: { config: Config }) {
     const payloads = all.map((r, i) => ({
       purchase_date: date, supplier_id: supplierId || null, category_id: r.category_id,
       [config.nameField]: r.name, quantity: r.quantity, unit: r.unit, unit_price: r.unit_price,
-      shipping_cost: i === 0 ? Number(shipping) || 0 : 0, remark: remark || null, created_by: user?.id,
+      shipping_cost: i === 0 ? Number(shipping) || 0 : 0, remark: remark || null,
+      payment_method: payMethod, payment_status: payStatus, created_by: user?.id,
     }))
     const { error } = await supabase.from(config.table).insert(payloads)
     if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
@@ -235,6 +245,14 @@ export function PurchaseModule({ config }: { config: Config }) {
     { accessorKey: 'unit_price', header: t('unit_price'), cell: ({ row }) => formatMoney(row.original.unit_price) },
     { accessorKey: 'shipping_cost', header: t('shipping_cost'), cell: ({ row }) => formatMoney(row.original.shipping_cost) },
     { accessorKey: 'total_price', header: t('total_price'), cell: ({ row }) => <span className="font-semibold text-primary">{formatMoney(row.original.total_price)}</span> },
+    {
+      accessorKey: 'payment_status', header: t('payment_status'),
+      cell: ({ row }) => (
+        <Badge variant={row.original.payment_status === 'paid' ? 'success' : 'warning'}>
+          {row.original.payment_status === 'paid' ? t('pay_paid') : t('pay_unpaid')}
+        </Badge>
+      ),
+    },
     {
       id: 'actions', header: t('actions'),
       cell: ({ row }) => (
@@ -327,6 +345,30 @@ export function PurchaseModule({ config }: { config: Config }) {
                 <SelectContent>{suppliers.map((s) => (
                   <SelectItem key={s.id} value={s.id}>{s.name}{s.contact_person ? ` · ${s.contact_person}` : ''}</SelectItem>
                 ))}</SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* payment method + status */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label>{t('payment_method')}</Label>
+              <Select value={payMethod} onValueChange={setPayMethod}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">{t('pay_cash')}</SelectItem>
+                  <SelectItem value="transfer">{t('pay_transfer')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>{t('payment_status')}</Label>
+              <Select value={payStatus} onValueChange={setPayStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paid">{t('pay_paid')}</SelectItem>
+                  <SelectItem value="unpaid">{t('pay_unpaid')}</SelectItem>
+                </SelectContent>
               </Select>
             </div>
           </div>

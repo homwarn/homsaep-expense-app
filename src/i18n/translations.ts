@@ -153,6 +153,14 @@ export const translations = {
   no_mapped_hint: { lo: 'ຜູ້ສະໜອງນີ້ຍັງບໍ່ໄດ້ຜູກສິນຄ້າ — ເພີ່ມລາຍການເອງລຸ່ມນີ້ ຫຼື ໄປຜູກໃນ ຂໍ້ມູນຫຼັກ', en: 'This supplier has no mapped items — add lines below or map them in Master Data' },
   add_other_item: { lo: 'ເພີ່ມລາຍການອື່ນ', en: 'Add other item' },
   price: { lo: 'ລາຄາ', en: 'Price' },
+  exchange_rate: { lo: 'ອັດຕາແລກປ່ຽນ (→ກີບ)', en: 'Exchange rate (→LAK)' },
+  price_lak: { lo: 'ລາຄາ (ກີບ)', en: 'Price (LAK)' },
+  payment_method: { lo: 'ວິທີຊຳລະ', en: 'Payment method' },
+  pay_cash: { lo: 'ເງິນສົດ', en: 'Cash' },
+  pay_transfer: { lo: 'ໂອນ', en: 'Transfer' },
+  payment_status: { lo: 'ສະຖານະຊຳລະ', en: 'Payment status' },
+  pay_paid: { lo: 'ຊຳລະແລ້ວ', en: 'Paid' },
+  pay_unpaid: { lo: 'ຄ້າງຊຳລະ', en: 'Unpaid' },
 
   // ---- invoice / line items ----
   line_items: { lo: 'ລາຍການ', en: 'Items' },
