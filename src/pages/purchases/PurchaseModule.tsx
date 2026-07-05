@@ -59,6 +59,20 @@ export function PurchaseModule({ config }: { config: Config }) {
   const [shipping, setShipping] = useState(0)
   const [remark, setRemark] = useState('')
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [supplierItems, setSupplierItems] = useState<Set<string>>(new Set())
+
+  const junction = config.itemTable === 'raw_materials'
+    ? { table: 'supplier_raw_materials', col: 'raw_material_id' }
+    : { table: 'supplier_drinks', col: 'drink_id' }
+
+  // when a supplier is selected, suggest the items they supply (if mapped)
+  useEffect(() => {
+    if (!supplierId) { setSupplierItems(new Set()); return }
+    supabase.from(junction.table).select(junction.col).eq('supplier_id', supplierId).then(({ data }) => {
+      setSupplierItems(new Set((data ?? []).map((x: any) => x[junction.col])))
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplierId])
 
   async function loadLookups() {
     const [{ data: sup }, { data: cat }, { data: it }] = await Promise.all([
@@ -271,7 +285,7 @@ export function PurchaseModule({ config }: { config: Config }) {
           </div>
 
           <datalist id={listId}>
-            {items.map((it) => <option key={it.id} value={it.name} />)}
+            {(supplierItems.size ? items.filter((it) => supplierItems.has(it.id)) : items).map((it) => <option key={it.id} value={it.name} />)}
           </datalist>
 
           {/* line-item card table */}

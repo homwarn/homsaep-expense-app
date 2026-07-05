@@ -39,7 +39,6 @@ export default function MasterData() {
 /* ============ Suppliers ============ */
 function SuppliersManager() {
   const { t } = useI18n()
-  const { isOwner } = useAuth()
   const { toast } = useToast()
   const [rows, setRows] = useState<any[]>([])
   const [open, setOpen] = useState(false)
@@ -47,23 +46,78 @@ function SuppliersManager() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [form, setForm] = useState<any>({ name: '', contact_person: '', phone: '', address: '', is_active: true })
 
+  // item mapping
+  const [rawItems, setRawItems] = useState<any[]>([])
+  const [drinkItems, setDrinkItems] = useState<any[]>([])
+  const [selRM, setSelRM] = useState<Set<string>>(new Set())
+  const [selDK, setSelDK] = useState<Set<string>>(new Set())
+  const [mapTab, setMapTab] = useState<'rm' | 'dk'>('rm')
+
   async function load() {
     const { data } = await supabase.from('suppliers').select('*').order('name')
     setRows(data ?? [])
   }
-  useEffect(() => { load() }, [])
+  async function loadItems() {
+    const [{ data: rm }, { data: dk }] = await Promise.all([
+      supabase.from('raw_materials').select('id,name,category:raw_material_categories(name)').order('name'),
+      supabase.from('drinks').select('id,name,category:drink_categories(name)').order('name'),
+    ])
+    setRawItems(rm ?? [])
+    setDrinkItems(dk ?? [])
+  }
+  useEffect(() => { load(); loadItems() }, [])
 
-  function openCreate() { setEditing(null); setForm({ name: '', contact_person: '', phone: '', address: '', is_active: true }); setOpen(true) }
-  function openEdit(s: any) { setEditing(s); setForm({ name: s.name, contact_person: s.contact_person ?? '', phone: s.phone ?? '', address: s.address ?? '', is_active: s.is_active }); setOpen(true) }
+  function openCreate() {
+    setEditing(null)
+    setForm({ name: '', contact_person: '', phone: '', address: '', is_active: true })
+    setSelRM(new Set()); setSelDK(new Set()); setMapTab('rm')
+    setOpen(true)
+  }
+  async function openEdit(s: any) {
+    setEditing(s)
+    setForm({ name: s.name, contact_person: s.contact_person ?? '', phone: s.phone ?? '', address: s.address ?? '', is_active: s.is_active })
+    setMapTab('rm')
+    const [{ data: rm }, { data: dk }] = await Promise.all([
+      supabase.from('supplier_raw_materials').select('raw_material_id').eq('supplier_id', s.id),
+      supabase.from('supplier_drinks').select('drink_id').eq('supplier_id', s.id),
+    ])
+    setSelRM(new Set((rm ?? []).map((x: any) => x.raw_material_id)))
+    setSelDK(new Set((dk ?? []).map((x: any) => x.drink_id)))
+    setOpen(true)
+  }
+
+  function toggle(set: Set<string>, id: string, setter: (s: Set<string>) => void) {
+    const next = new Set(set)
+    next.has(id) ? next.delete(id) : next.add(id)
+    setter(next)
+  }
+
+  async function syncMappings(supplierId: string) {
+    await Promise.all([
+      supabase.from('supplier_raw_materials').delete().eq('supplier_id', supplierId),
+      supabase.from('supplier_drinks').delete().eq('supplier_id', supplierId),
+    ])
+    const rmRows = [...selRM].map((raw_material_id) => ({ supplier_id: supplierId, raw_material_id }))
+    const dkRows = [...selDK].map((drink_id) => ({ supplier_id: supplierId, drink_id }))
+    if (rmRows.length) await supabase.from('supplier_raw_materials').insert(rmRows)
+    if (dkRows.length) await supabase.from('supplier_drinks').insert(dkRows)
+  }
 
   async function save() {
     if (!form.name.trim()) return
     const { data: { user } } = await supabase.auth.getUser()
     const payload: any = { name: form.name.trim(), contact_person: form.contact_person || null, phone: form.phone || null, address: form.address || null, is_active: form.is_active }
-    let error
-    if (editing) ({ error } = await supabase.from('suppliers').update(payload).eq('id', editing.id))
-    else { payload.created_by = user?.id; ({ error } = await supabase.from('suppliers').insert(payload)) }
-    if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
+    let id = editing?.id
+    if (editing) {
+      const { error } = await supabase.from('suppliers').update(payload).eq('id', editing.id)
+      if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
+    } else {
+      payload.created_by = user?.id
+      const { data, error } = await supabase.from('suppliers').insert(payload).select('id').single()
+      if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
+      id = data?.id
+    }
+    if (id) await syncMappings(id)
     toast({ title: t('saved') }); setOpen(false); load()
   }
   async function confirmDelete() {
@@ -72,6 +126,20 @@ function SuppliersManager() {
     if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
     toast({ title: t('deleted') }); setDeleteId(null); load()
   }
+
+  // group items by category name for the picker
+  const groupByCat = (list: any[]) => {
+    const m = new Map<string, any[]>()
+    list.forEach((it) => {
+      const k = it.category?.name ?? '—'
+      if (!m.has(k)) m.set(k, [])
+      m.get(k)!.push(it)
+    })
+    return [...m.entries()]
+  }
+  const activeList = mapTab === 'rm' ? rawItems : drinkItems
+  const activeSel = mapTab === 'rm' ? selRM : selDK
+  const activeSetter = mapTab === 'rm' ? setSelRM : setSelDK
 
   return (
     <Card>
@@ -116,6 +184,37 @@ function SuppliersManager() {
             </div>
             <div className="space-y-1"><Label>{t('address')}</Label><Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
             <div className="flex items-center gap-3"><Switch checked={form.is_active} onCheckedChange={(c) => setForm({ ...form, is_active: c })} /><Label>{t('active')}</Label></div>
+
+            {/* supplied-items mapping */}
+            <div className="space-y-2 rounded-xl border p-3">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1"><Package className="h-3.5 w-3.5" />{t('supplied_items')}</Label>
+                <div className="flex rounded-lg border p-0.5 text-xs">
+                  <button type="button" onClick={() => setMapTab('rm')} className={cn('rounded-md px-2 py-1', mapTab === 'rm' ? 'bg-primary text-primary-foreground' : '')}>{t('raw_materials_data')} ({selRM.size})</button>
+                  <button type="button" onClick={() => setMapTab('dk')} className={cn('rounded-md px-2 py-1', mapTab === 'dk' ? 'bg-primary text-primary-foreground' : '')}>{t('drinks_data')} ({selDK.size})</button>
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">{t('supplied_items_hint')}</p>
+              <div className="max-h-48 space-y-3 overflow-y-auto pr-1">
+                {activeList.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">{t('no_data')}</p>}
+                {groupByCat(activeList).map(([cat, list]) => (
+                  <div key={cat}>
+                    <p className="mb-1 text-xs font-semibold text-muted-foreground">{cat}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {list.map((it) => {
+                        const on = activeSel.has(it.id)
+                        return (
+                          <button key={it.id} type="button" onClick={() => toggle(activeSel, it.id, activeSetter)}
+                            className={cn('rounded-full border px-3 py-1 text-xs transition-colors', on ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent')}>
+                            {it.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>{t('cancel')}</Button>

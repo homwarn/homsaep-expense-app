@@ -136,6 +136,8 @@ export const translations = {
 
   // ---- master data menu ----
   master_data: { lo: 'ຂໍ້ມູນຫຼັກ', en: 'Master Data' },
+  supplied_items: { lo: 'ສິນຄ້າທີ່ສະໜອງ', en: 'Supplied Items' },
+  supplied_items_hint: { lo: 'ເລືອກລາຍການທີ່ຜູ້ສະໜອງນີ້ຂາຍ (ຄລິກເພື່ອເລືອກ)', en: 'Pick the items this supplier provides (click to toggle)' },
   categories: { lo: 'ໝວດ', en: 'Categories' },
   items: { lo: 'ລາຍການ', en: 'Items' },
   add_item: { lo: 'ເພີ່ມລາຍການ', en: 'Add Item' },
