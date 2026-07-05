@@ -144,6 +144,16 @@ export const translations = {
   raw_materials_data: { lo: 'ວັດຖຸດິບ', en: 'Raw Materials' },
   drinks_data: { lo: 'ເຄື່ອງດື່ມ', en: 'Drinks' },
 
+  // ---- purchase entry modes ----
+  entry_mode: { lo: 'ວິທີບັນທຶກ', en: 'Entry mode' },
+  mode_detail: { lo: 'ລາຍລະອຽດ', en: 'Itemized' },
+  mode_total: { lo: 'ຍອດລວມໃບບິນ', en: 'Bill total' },
+  bill_amount: { lo: 'ຍອດຊື້ລວມ', en: 'Bill total amount' },
+  select_supplier_first: { lo: 'ເລືອກຜູ້ສະໜອງກ່ອນ ເພື່ອສະແດງສິນຄ້າທີ່ຜູກໄວ້', en: 'Select a supplier to show their mapped items' },
+  no_mapped_hint: { lo: 'ຜູ້ສະໜອງນີ້ຍັງບໍ່ໄດ້ຜູກສິນຄ້າ — ເພີ່ມລາຍການເອງລຸ່ມນີ້ ຫຼື ໄປຜູກໃນ ຂໍ້ມູນຫຼັກ', en: 'This supplier has no mapped items — add lines below or map them in Master Data' },
+  add_other_item: { lo: 'ເພີ່ມລາຍການອື່ນ', en: 'Add other item' },
+  price: { lo: 'ລາຄາ', en: 'Price' },
+
   // ---- invoice / line items ----
   line_items: { lo: 'ລາຍການ', en: 'Items' },
   add_line: { lo: 'ເພີ່ມລາຍການ', en: 'Add item' },

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, Download, ShoppingCart, Truck, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download, ShoppingCart, Truck, X, Check } from 'lucide-react'
 import { PageHeader } from '@/components/common/PageHeader'
 import { DataTable } from '@/components/common/DataTable'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
@@ -22,6 +22,7 @@ import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/i18n/I18nProvider'
 import { formatMoney, formatDate, todayISO } from '@/lib/utils'
 import { exportCSV, exportExcel, exportPDF } from '@/lib/export'
+import { cn } from '@/lib/utils'
 
 interface Config {
   table: 'raw_material_purchases' | 'drink_purchases'
@@ -38,6 +39,7 @@ interface Line {
   unit: string
   unit_price: number
 }
+interface Picked { quantity: number; unit: string; unit_price: number }
 
 const emptyLine = (): Line => ({ category_id: '', name: '', quantity: 1, unit: '', unit_price: 0 })
 
@@ -53,32 +55,27 @@ export function PurchaseModule({ config }: { config: Config }) {
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [mode, setMode] = useState<'items' | 'lump'>('items')
   const [date, setDate] = useState(todayISO())
   const [supplierId, setSupplierId] = useState('')
-  const [lines, setLines] = useState<Line[]>([emptyLine()])
   const [shipping, setShipping] = useState(0)
   const [remark, setRemark] = useState('')
+  const [lumpAmount, setLumpAmount] = useState(0)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [supplierItems, setSupplierItems] = useState<Set<string>>(new Set())
+
+  const [mappedIds, setMappedIds] = useState<Set<string>>(new Set())
+  const [picked, setPicked] = useState<Record<string, Picked>>({})
+  const [customLines, setCustomLines] = useState<Line[]>([])
 
   const junction = config.itemTable === 'raw_materials'
     ? { table: 'supplier_raw_materials', col: 'raw_material_id' }
     : { table: 'supplier_drinks', col: 'drink_id' }
 
-  // when a supplier is selected, suggest the items they supply (if mapped)
-  useEffect(() => {
-    if (!supplierId) { setSupplierItems(new Set()); return }
-    supabase.from(junction.table).select(junction.col).eq('supplier_id', supplierId).then(({ data }) => {
-      setSupplierItems(new Set((data ?? []).map((x: any) => x[junction.col])))
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supplierId])
-
   async function loadLookups() {
     const [{ data: sup }, { data: cat }, { data: it }] = await Promise.all([
       supabase.from('suppliers').select('id,name,contact_person').eq('is_active', true).order('name'),
       supabase.from(config.categoryTable).select('id,name').order('name'),
-      supabase.from(config.itemTable).select('id,name,category_id,unit').order('name'),
+      supabase.from(config.itemTable).select(`id,name,category_id,unit,price, category:${config.categoryTable}(name)`).order('name'),
     ])
     setSuppliers(sup ?? [])
     setCategories(cat ?? [])
@@ -96,78 +93,128 @@ export function PurchaseModule({ config }: { config: Config }) {
   }
 
   useEffect(() => {
-    load()
-    loadLookups()
+    load(); loadLookups()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.table])
+
+  // load supplier→item mapping when supplier changes
+  useEffect(() => {
+    if (!supplierId) { setMappedIds(new Set()); return }
+    supabase.from(junction.table).select(junction.col).eq('supplier_id', supplierId).then(({ data }) => {
+      setMappedIds(new Set((data ?? []).map((x: any) => x[junction.col])))
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplierId])
 
   const filtered = useMemo(
     () => (filterCat === 'all' ? rows : rows.filter((r) => r.category_id === filterCat)),
     [rows, filterCat],
   )
 
-  const subtotal = lines.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unit_price) || 0), 0)
+  const supplierItemList = supplierId && mappedIds.size ? items.filter((i) => mappedIds.has(i.id)) : []
+  const groupedSupplierItems = useMemo(() => {
+    const m = new Map<string, any[]>()
+    supplierItemList.forEach((it) => {
+      const k = it.category?.name ?? '—'
+      if (!m.has(k)) m.set(k, [])
+      m.get(k)!.push(it)
+    })
+    return [...m.entries()]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplierItemList.map((i) => i.id).join(',')])
+
+  const pickedTotal = Object.values(picked).reduce((s, p) => s + (Number(p.quantity) || 0) * (Number(p.unit_price) || 0), 0)
+  const customTotal = customLines.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unit_price) || 0), 0)
+  const subtotal = mode === 'lump' ? (Number(lumpAmount) || 0) : pickedTotal + customTotal
   const grandTotal = subtotal + (Number(shipping) || 0)
 
-  function openCreate() {
-    setEditingId(null)
-    setDate(todayISO()); setSupplierId(''); setLines([emptyLine()]); setShipping(0); setRemark('')
-    setDialogOpen(true)
+  function resetForm() {
+    setEditingId(null); setMode('items'); setDate(todayISO()); setSupplierId('')
+    setShipping(0); setRemark(''); setLumpAmount(0); setPicked({}); setCustomLines([])
   }
+  function openCreate() { resetForm(); setDialogOpen(true) }
   function openEdit(row: any) {
-    setEditingId(row.id)
-    setDate(row.purchase_date)
-    setSupplierId(row.supplier_id ?? '')
-    setLines([{ category_id: row.category_id ?? '', name: row[config.nameField], quantity: row.quantity, unit: row.unit ?? '', unit_price: row.unit_price }])
-    setShipping(row.shipping_cost ?? 0)
-    setRemark(row.remark ?? '')
+    setEditingId(row.id); setMode('items'); setDate(row.purchase_date); setSupplierId(row.supplier_id ?? '')
+    setShipping(row.shipping_cost ?? 0); setRemark(row.remark ?? ''); setLumpAmount(0); setPicked({})
+    setCustomLines([{ category_id: row.category_id ?? '', name: row[config.nameField], quantity: row.quantity, unit: row.unit ?? '', unit_price: row.unit_price }])
     setDialogOpen(true)
-  }
-  function updateLine(i: number, patch: Partial<Line>) {
-    setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
   }
 
-  async function ensureItem(categoryId: string, name: string, unit: string) {
-    // only remember items that belong to a category, and avoid duplicates (any category)
+  function togglePick(it: any) {
+    setPicked((p) => {
+      const next = { ...p }
+      if (next[it.id]) delete next[it.id]
+      else next[it.id] = { quantity: 1, unit: it.unit ?? '', unit_price: Number(it.price) || 0 }
+      return next
+    })
+  }
+  function patchPick(id: string, patch: Partial<Picked>) {
+    setPicked((p) => ({ ...p, [id]: { ...p[id], ...patch } }))
+  }
+  function updateCustom(i: number, patch: Partial<Line>) {
+    setCustomLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
+  }
+
+  async function ensureItem(categoryId: string, name: string, unit: string, price: number) {
     if (!categoryId || !name.trim()) return
     const key = name.trim().toLowerCase()
-    const exists = items.some((it) => it.name.trim().toLowerCase() === key)
-    if (!exists) {
-      await supabase.from(config.itemTable).insert({ category_id: categoryId, name: name.trim(), unit: unit || null })
+    if (!items.some((it) => it.name.trim().toLowerCase() === key)) {
+      await supabase.from(config.itemTable).insert({ category_id: categoryId, name: name.trim(), unit: unit || null, price: price || 0 })
     }
   }
 
   async function onSubmit() {
-    const valid = lines.filter((l) => l.name.trim())
-    if (!valid.length) return toast({ title: t('error'), description: t('item_name'), variant: 'error' })
     const { data: { user } } = await supabase.auth.getUser()
 
+    // ---- edit: single row ----
     if (editingId) {
-      const l = valid[0]
-      await ensureItem(l.category_id, l.name, l.unit)
+      const l = customLines[0]
+      if (!l?.name.trim()) return toast({ title: t('error'), description: t('item_name'), variant: 'error' })
       const { error } = await supabase.from(config.table).update({
         purchase_date: date, supplier_id: supplierId || null, category_id: l.category_id || null,
         [config.nameField]: l.name.trim(), quantity: Number(l.quantity), unit: l.unit || null,
         unit_price: Number(l.unit_price), shipping_cost: Number(shipping) || 0, remark: remark || null,
       }).eq('id', editingId)
       if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
-    } else {
-      const payloads = await Promise.all(valid.map(async (l, i) => {
-        await ensureItem(l.category_id, l.name, l.unit)
-        return {
-          purchase_date: date, supplier_id: supplierId || null, category_id: l.category_id || null,
-          [config.nameField]: l.name.trim(), quantity: Number(l.quantity), unit: l.unit || null,
-          unit_price: Number(l.unit_price), shipping_cost: i === 0 ? Number(shipping) || 0 : 0,
-          remark: remark || null, created_by: user?.id,
-        }
-      }))
-      const { error } = await supabase.from(config.table).insert(payloads)
-      if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
+      logActivity('update', config.table, editingId)
+      toast({ title: t('saved') }); setDialogOpen(false); load()
+      return
     }
-    logActivity(editingId ? 'update' : 'insert', config.table, editingId ?? undefined)
-    toast({ title: t('saved') })
-    setDialogOpen(false)
-    load(); loadLookups()
+
+    // ---- lump-sum bill ----
+    if (mode === 'lump') {
+      if (!(Number(lumpAmount) > 0)) return toast({ title: t('error'), description: t('bill_amount'), variant: 'error' })
+      const { error } = await supabase.from(config.table).insert({
+        purchase_date: date, supplier_id: supplierId || null, category_id: null,
+        [config.nameField]: remark.trim() || t('mode_total'), quantity: 1, unit: null,
+        unit_price: Number(lumpAmount), shipping_cost: Number(shipping) || 0, remark: remark || null, created_by: user?.id,
+      })
+      if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
+      logActivity('insert', config.table)
+      toast({ title: t('saved') }); setDialogOpen(false); load()
+      return
+    }
+
+    // ---- itemized: picked + custom ----
+    const pickedRows = Object.entries(picked).map(([id, p]) => {
+      const it = items.find((x) => x.id === id)
+      return { category_id: it?.category_id ?? null, name: it?.name ?? '', quantity: Number(p.quantity), unit: p.unit || null, unit_price: Number(p.unit_price) }
+    })
+    const customRows = customLines.filter((l) => l.name.trim()).map((l) => ({ category_id: l.category_id || null, name: l.name.trim(), quantity: Number(l.quantity), unit: l.unit || null, unit_price: Number(l.unit_price) }))
+    const all = [...pickedRows, ...customRows]
+    if (!all.length) return toast({ title: t('error'), description: t('item_name'), variant: 'error' })
+
+    for (const l of customRows) await ensureItem(l.category_id ?? '', l.name, l.unit ?? '', l.unit_price)
+
+    const payloads = all.map((r, i) => ({
+      purchase_date: date, supplier_id: supplierId || null, category_id: r.category_id,
+      [config.nameField]: r.name, quantity: r.quantity, unit: r.unit, unit_price: r.unit_price,
+      shipping_cost: i === 0 ? Number(shipping) || 0 : 0, remark: remark || null, created_by: user?.id,
+    }))
+    const { error } = await supabase.from(config.table).insert(payloads)
+    if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
+    logActivity('insert', config.table)
+    toast({ title: t('saved') }); setDialogOpen(false); load(); loadLookups()
   }
 
   async function confirmDelete() {
@@ -212,7 +259,6 @@ export function PurchaseModule({ config }: { config: Config }) {
   }
 
   const total_all = filtered.reduce((s, r) => s + Number(r.total_price), 0)
-  const listId = `${config.itemTable}-items`
 
   return (
     <div>
@@ -257,9 +303,9 @@ export function PurchaseModule({ config }: { config: Config }) {
 
       <Card><CardContent className="p-4"><DataTable columns={columns} data={filtered} loading={loading} /></CardContent></Card>
 
-      {/* ---- Invoice dialog ---- */}
+      {/* ---- dialog ---- */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5 text-primary" />
@@ -268,6 +314,7 @@ export function PurchaseModule({ config }: { config: Config }) {
             <DialogDescription>{t('purchase_form_hint')}</DialogDescription>
           </DialogHeader>
 
+          {/* header: date + supplier */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <Label>{t('date')}</Label>
@@ -284,67 +331,104 @@ export function PurchaseModule({ config }: { config: Config }) {
             </div>
           </div>
 
-          <datalist id={listId}>
-            {(supplierItems.size ? items.filter((it) => supplierItems.has(it.id)) : items).map((it) => <option key={it.id} value={it.name} />)}
-          </datalist>
-
-          {/* line-item card table */}
-          <div className="space-y-2">
-            <Label>{t('line_items')}</Label>
-            <div className="overflow-x-auto rounded-xl border">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead className="bg-muted/50 text-xs text-muted-foreground">
-                  <tr>
-                    <th className="px-2 py-2 text-left font-medium">{t('category')}</th>
-                    <th className="px-2 py-2 text-left font-medium">{t('item_name')}</th>
-                    <th className="px-2 py-2 text-left font-medium">{t('quantity')}</th>
-                    <th className="px-2 py-2 text-left font-medium">{t('unit')}</th>
-                    <th className="px-2 py-2 text-left font-medium">{t('unit_price')}</th>
-                    <th className="px-2 py-2 text-right font-medium">{t('line_total')}</th>
-                    <th className="w-8" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((line, i) => {
-                    const lineTotal = (Number(line.quantity) || 0) * (Number(line.unit_price) || 0)
-                    const catItems = items.filter((it) => !line.category_id || it.category_id === line.category_id)
-                    return (
-                      <tr key={i} className="border-t align-middle">
-                        <td className="px-2 py-1.5">
-                          <Select value={line.category_id} onValueChange={(v) => updateLine(i, { category_id: v })}>
-                            <SelectTrigger className="h-9 w-36"><SelectValue placeholder="—" /></SelectTrigger>
-                            <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                          </Select>
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <Input list={listId} className="h-9 min-w-[9rem]" value={line.name}
-                            onChange={(e) => { const val = e.target.value; const m = catItems.find((it) => it.name === val); updateLine(i, { name: val, unit: m?.unit ?? line.unit }) }} />
-                        </td>
-                        <td className="px-2 py-1.5"><Input type="number" step="any" className="h-9 w-20" value={line.quantity} onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })} /></td>
-                        <td className="px-2 py-1.5"><Input className="h-9 w-20" value={line.unit} onChange={(e) => updateLine(i, { unit: e.target.value })} placeholder="kg" /></td>
-                        <td className="px-2 py-1.5"><Input type="number" step="any" className="h-9 w-28" value={line.unit_price} onChange={(e) => updateLine(i, { unit_price: Number(e.target.value) })} /></td>
-                        <td className="px-2 py-1.5 text-right font-medium">{formatMoney(lineTotal)}</td>
-                        <td className="px-1">
-                          {!editingId && (
-                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title={t('delete')}
-                              onClick={() => setLines((ls) => (ls.length > 1 ? ls.filter((_, idx) => idx !== i) : [emptyLine()]))}>
-                              <X className="h-4 w-4 text-destructive" />
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+          {/* mode switch (create only) */}
+          {!editingId && (
+            <div className="flex rounded-xl border p-1 text-sm">
+              <button type="button" onClick={() => setMode('items')} className={cn('flex-1 rounded-lg px-3 py-1.5 font-medium', mode === 'items' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('mode_detail')}</button>
+              <button type="button" onClick={() => setMode('lump')} className={cn('flex-1 rounded-lg px-3 py-1.5 font-medium', mode === 'lump' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('mode_total')}</button>
             </div>
+          )}
 
-            {!editingId && (
-              <Button type="button" variant="outline" className="w-full border-dashed" onClick={() => setLines((ls) => [...ls, emptyLine()])}>
-                <Plus className="h-4 w-4" />{t('add_line')}
-              </Button>
-            )}
-          </div>
+          {/* ===== LUMP MODE ===== */}
+          {mode === 'lump' && !editingId && (
+            <div className="space-y-1">
+              <Label>{t('bill_amount')}</Label>
+              <Input type="number" step="any" value={lumpAmount} onChange={(e) => setLumpAmount(Number(e.target.value))} placeholder="0" />
+            </div>
+          )}
+
+          {/* ===== ITEMS MODE ===== */}
+          {mode === 'items' && (
+            <div className="space-y-3">
+              {/* supplier mapped items */}
+              {!editingId && (
+                <div className="space-y-2">
+                  <Label>{t('supplied_items')}</Label>
+                  {!supplierId && <p className="rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground">{t('select_supplier_first')}</p>}
+                  {supplierId && supplierItemList.length === 0 && <p className="rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground">{t('no_mapped_hint')}</p>}
+                  {groupedSupplierItems.map(([cat, list]) => (
+                    <div key={cat}>
+                      <p className="mb-1 text-xs font-semibold text-muted-foreground">{cat}</p>
+                      <div className="space-y-1.5">
+                        {list.map((it) => {
+                          const on = !!picked[it.id]
+                          const p = picked[it.id]
+                          return (
+                            <div key={it.id} className={cn('rounded-lg border p-2 transition-colors', on ? 'border-primary bg-primary/5' : '')}>
+                              <div className="flex items-center gap-2">
+                                <button type="button" onClick={() => togglePick(it)}
+                                  className={cn('flex h-6 w-6 items-center justify-center rounded-md border', on ? 'border-primary bg-primary text-primary-foreground' : '')}>
+                                  {on && <Check className="h-4 w-4" />}
+                                </button>
+                                <span className="flex-1 text-sm font-medium">{it.name}</span>
+                                <span className="text-xs text-muted-foreground">{formatMoney(it.price)}{it.unit ? ` / ${it.unit}` : ''}</span>
+                              </div>
+                              {on && (
+                                <div className="mt-2 grid grid-cols-3 gap-2">
+                                  <div><Label className="text-[10px] text-muted-foreground">{t('quantity')}</Label><Input type="number" step="any" className="h-8" value={p.quantity} onChange={(e) => patchPick(it.id, { quantity: Number(e.target.value) })} /></div>
+                                  <div><Label className="text-[10px] text-muted-foreground">{t('unit')}</Label><Input className="h-8" value={p.unit} onChange={(e) => patchPick(it.id, { unit: e.target.value })} /></div>
+                                  <div><Label className="text-[10px] text-muted-foreground">{t('unit_price')}</Label><Input type="number" step="any" className="h-8" value={p.unit_price} onChange={(e) => patchPick(it.id, { unit_price: Number(e.target.value) })} /></div>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* custom / editable lines */}
+              {(customLines.length > 0 || editingId) && (
+                <div className="overflow-x-auto rounded-xl border">
+                  <table className="w-full min-w-[600px] text-sm">
+                    <thead className="bg-muted/50 text-xs text-muted-foreground"><tr>
+                      <th className="px-2 py-2 text-left font-medium">{t('category')}</th>
+                      <th className="px-2 py-2 text-left font-medium">{t('item_name')}</th>
+                      <th className="px-2 py-2 text-left font-medium">{t('quantity')}</th>
+                      <th className="px-2 py-2 text-left font-medium">{t('unit')}</th>
+                      <th className="px-2 py-2 text-left font-medium">{t('unit_price')}</th>
+                      <th className="w-8" />
+                    </tr></thead>
+                    <tbody>
+                      {customLines.map((line, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="px-2 py-1.5">
+                            <Select value={line.category_id} onValueChange={(v) => updateCustom(i, { category_id: v })}>
+                              <SelectTrigger className="h-9 w-36"><SelectValue placeholder="—" /></SelectTrigger>
+                              <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </td>
+                          <td className="px-2 py-1.5"><Input className="h-9 min-w-[9rem]" value={line.name} onChange={(e) => updateCustom(i, { name: e.target.value })} /></td>
+                          <td className="px-2 py-1.5"><Input type="number" step="any" className="h-9 w-20" value={line.quantity} onChange={(e) => updateCustom(i, { quantity: Number(e.target.value) })} /></td>
+                          <td className="px-2 py-1.5"><Input className="h-9 w-20" value={line.unit} onChange={(e) => updateCustom(i, { unit: e.target.value })} placeholder="kg" /></td>
+                          <td className="px-2 py-1.5"><Input type="number" step="any" className="h-9 w-28" value={line.unit_price} onChange={(e) => updateCustom(i, { unit_price: Number(e.target.value) })} /></td>
+                          <td className="px-1">{!editingId && <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCustomLines((ls) => ls.filter((_, idx) => idx !== i))}><X className="h-4 w-4 text-destructive" /></Button>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {!editingId && (
+                <Button type="button" variant="outline" className="w-full border-dashed" onClick={() => setCustomLines((ls) => [...ls, emptyLine()])}>
+                  <Plus className="h-4 w-4" />{t('add_other_item')}
+                </Button>
+              )}
+            </div>
+          )}
 
           {/* totals + shipping */}
           <div className="space-y-2 rounded-xl border bg-muted/30 p-4">

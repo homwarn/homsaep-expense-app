@@ -15,7 +15,7 @@ import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { useI18n } from '@/i18n/I18nProvider'
-import { cn } from '@/lib/utils'
+import { cn, formatMoney } from '@/lib/utils'
 
 export default function MasterData() {
   const { t } = useI18n()
@@ -244,7 +244,7 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
   // item state
   const [itemOpen, setItemOpen] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
-  const [itemForm, setItemForm] = useState<any>({ name: '', category_id: '', unit: '' })
+  const [itemForm, setItemForm] = useState<any>({ name: '', category_id: '', unit: '', price: 0 })
   const [delItem, setDelItem] = useState<string | null>(null)
 
   async function load() {
@@ -276,11 +276,11 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
   const shownItems = selectedCat ? items.filter((it) => it.category_id === selectedCat) : items
   const selectedCatName = categories.find((c) => c.id === selectedCat)?.name
 
-  function openItemCreate() { setEditItem(null); setItemForm({ name: '', category_id: selectedCat || categories[0]?.id || '', unit: '' }); setItemOpen(true) }
-  function openItemEdit(it: any) { setEditItem(it); setItemForm({ name: it.name, category_id: it.category_id ?? '', unit: it.unit ?? '' }); setItemOpen(true) }
+  function openItemCreate() { setEditItem(null); setItemForm({ name: '', category_id: selectedCat || categories[0]?.id || '', unit: '', price: 0 }); setItemOpen(true) }
+  function openItemEdit(it: any) { setEditItem(it); setItemForm({ name: it.name, category_id: it.category_id ?? '', unit: it.unit ?? '', price: it.price ?? 0 }); setItemOpen(true) }
   async function saveItem() {
     if (!itemForm.name.trim()) return
-    const payload = { name: itemForm.name.trim(), category_id: itemForm.category_id || null, unit: itemForm.unit || null }
+    const payload = { name: itemForm.name.trim(), category_id: itemForm.category_id || null, unit: itemForm.unit || null, price: Number(itemForm.price) || 0 }
     let error
     if (editItem) ({ error } = await supabase.from(itemTable).update(payload).eq('id', editItem.id))
     else ({ error } = await supabase.from(itemTable).insert(payload))
@@ -350,6 +350,7 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
                 <th className="px-4 py-2 text-left">{t('item_name')}</th>
                 <th className="px-4 py-2 text-left">{t('category')}</th>
                 <th className="px-4 py-2 text-left">{t('unit')}</th>
+                <th className="px-4 py-2 text-right">{t('price')}</th>
                 <th className="px-4 py-2 text-right">{t('actions')}</th>
               </tr></thead>
               <tbody>
@@ -358,13 +359,14 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
                     <td className="px-4 py-2 font-medium">{it.name}</td>
                     <td className="px-4 py-2">{it.category?.name ?? '-'}</td>
                     <td className="px-4 py-2">{it.unit ?? '-'}</td>
+                    <td className="px-4 py-2 text-right">{formatMoney(it.price ?? 0)}</td>
                     <td className="px-4 py-2 text-right">
                       <Button variant="ghost" size="icon" onClick={() => openItemEdit(it)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" onClick={() => setDelItem(it.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                     </td>
                   </tr>
                 ))}
-                {shownItems.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">{t('no_data')}</td></tr>}
+                {shownItems.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">{t('no_data')}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -376,14 +378,15 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
           <DialogHeader><DialogTitle>{editItem ? t('edit') : t('add_item')}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1"><Label>{t('item_name')}</Label><Input value={itemForm.name} onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })} autoFocus /></div>
+            <div className="space-y-1"><Label>{t('category')}</Label>
+              <Select value={itemForm.category_id} onValueChange={(v) => setItemForm({ ...itemForm, category_id: v })}>
+                <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>{t('category')}</Label>
-                <Select value={itemForm.category_id} onValueChange={(v) => setItemForm({ ...itemForm, category_id: v })}>
-                  <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-                  <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
               <div className="space-y-1"><Label>{t('unit')}</Label><Input value={itemForm.unit} onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })} placeholder="kg, ຖົງ" /></div>
+              <div className="space-y-1"><Label>{t('price')}</Label><Input type="number" step="any" value={itemForm.price} onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })} placeholder="0" /></div>
             </div>
           </div>
           <DialogFooter>
