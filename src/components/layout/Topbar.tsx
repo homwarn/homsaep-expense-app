@@ -40,7 +40,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
 
       <button
         onClick={() => setSearchOpen(true)}
-        className="flex h-10 flex-1 max-w-md items-center gap-2 rounded-xl border border-border/60 bg-background/50 px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-background/80"
+        className="flex h-10 min-w-0 flex-1 max-w-md items-center gap-2 rounded-xl border border-border/60 bg-background/50 px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-background/80"
       >
         <Search className="h-4 w-4" />
         <span className="flex-1 text-left">{t('search_everything')}</span>

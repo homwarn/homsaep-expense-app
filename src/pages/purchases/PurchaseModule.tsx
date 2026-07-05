@@ -376,7 +376,7 @@ export function PurchaseModule({ config }: { config: Config }) {
           )}
 
           {/* STEP 4 — currency for manual amounts */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Label className="whitespace-nowrap"><span className="mr-1 text-primary">4.</span>{t('currency')}</Label>
             <Select value={formCurrency} onValueChange={setFormCurrency}>
               <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
