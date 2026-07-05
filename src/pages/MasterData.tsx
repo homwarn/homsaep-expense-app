@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { useI18n } from '@/i18n/I18nProvider'
+import { cn } from '@/lib/utils'
 
 export default function MasterData() {
   const { t } = useI18n()
@@ -134,6 +135,7 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
   const { toast } = useToast()
   const [categories, setCategories] = useState<any[]>([])
   const [items, setItems] = useState<any[]>([])
+  const [selectedCat, setSelectedCat] = useState<string>('') // '' = all
 
   // category state
   const [catName, setCatName] = useState('')
@@ -172,7 +174,10 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
     setDelCat(null); toast({ title: t('deleted') }); load()
   }
 
-  function openItemCreate() { setEditItem(null); setItemForm({ name: '', category_id: categories[0]?.id ?? '', unit: '' }); setItemOpen(true) }
+  const shownItems = selectedCat ? items.filter((it) => it.category_id === selectedCat) : items
+  const selectedCatName = categories.find((c) => c.id === selectedCat)?.name
+
+  function openItemCreate() { setEditItem(null); setItemForm({ name: '', category_id: selectedCat || categories[0]?.id || '', unit: '' }); setItemOpen(true) }
   function openItemEdit(it: any) { setEditItem(it); setItemForm({ name: it.name, category_id: it.category_id ?? '', unit: it.unit ?? '' }); setItemOpen(true) }
   async function saveItem() {
     if (!itemForm.name.trim()) return
@@ -202,15 +207,27 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
             {editCat && <Button variant="outline" onClick={() => setEditCat(null)}>{t('cancel')}</Button>}
           </div>
           <div className="space-y-1">
-            {categories.map((c) => (
-              <div key={c.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                <span>{c.name}</span>
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditCat(c)}><Pencil className="h-3.5 w-3.5" /></Button>
-                  {<Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDelCat(c.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>}
+            <button
+              onClick={() => setSelectedCat('')}
+              className={cn('flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors', selectedCat === '' ? 'border-primary bg-primary/10 font-semibold' : 'hover:bg-accent')}
+            >
+              <span>{t('all')}</span>
+              <span className="text-xs text-muted-foreground">{items.length}</span>
+            </button>
+            {categories.map((c) => {
+              const count = items.filter((it) => it.category_id === c.id).length
+              return (
+                <div key={c.id} className={cn('flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors', selectedCat === c.id ? 'border-primary bg-primary/10' : '')}>
+                  <button className="flex-1 text-left font-medium" onClick={() => setSelectedCat(c.id)}>
+                    {c.name} <span className="ml-1 text-xs text-muted-foreground">({count})</span>
+                  </button>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditCat(c)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDelCat(c.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
             {categories.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">{t('no_data')}</p>}
           </div>
         </CardContent>
@@ -218,9 +235,14 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
 
       {/* items */}
       <Card className="lg:col-span-3">
-        <CardHeader className="flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base"><Package className="h-4 w-4" />{t('items')}</CardTitle>
-          <Button size="sm" onClick={openItemCreate}><Plus className="h-4 w-4" />{t('add_item')}</Button>
+        <CardHeader className="flex-row items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Package className="h-4 w-4" />{t('items')}
+            {selectedCatName && <Badge variant="secondary" className="font-normal">{selectedCatName}</Badge>}
+          </CardTitle>
+          <Button size="sm" onClick={openItemCreate}>
+            <Plus className="h-4 w-4" />{t('add_item')}{selectedCatName ? ` · ${selectedCatName}` : ''}
+          </Button>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-xl border">
@@ -232,18 +254,18 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
                 <th className="px-4 py-2 text-right">{t('actions')}</th>
               </tr></thead>
               <tbody>
-                {items.map((it) => (
+                {shownItems.map((it) => (
                   <tr key={it.id} className="border-t">
                     <td className="px-4 py-2 font-medium">{it.name}</td>
                     <td className="px-4 py-2">{it.category?.name ?? '-'}</td>
                     <td className="px-4 py-2">{it.unit ?? '-'}</td>
                     <td className="px-4 py-2 text-right">
                       <Button variant="ghost" size="icon" onClick={() => openItemEdit(it)}><Pencil className="h-4 w-4" /></Button>
-                      {<Button variant="ghost" size="icon" onClick={() => setDelItem(it.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+                      <Button variant="ghost" size="icon" onClick={() => setDelItem(it.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                     </td>
                   </tr>
                 ))}
-                {items.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">{t('no_data')}</td></tr>}
+                {shownItems.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">{t('no_data')}</td></tr>}
               </tbody>
             </table>
           </div>
