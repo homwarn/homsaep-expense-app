@@ -36,15 +36,15 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route path="/" element={<ProtectedRoute requireFinance><Dashboard /></ProtectedRoute>} />
+          <Route path="/" element={<Dashboard />} />
           <Route path="/raw-materials" element={<RawMaterials />} />
           <Route path="/drinks" element={<Drinks />} />
           <Route path="/master-data" element={<MasterData />} />
           <Route path="/expenses" element={<OtherExpenses />} />
-          <Route path="/revenue" element={<ProtectedRoute requireFinance><Revenue /></ProtectedRoute>} />
-          <Route path="/expense-summary" element={<ProtectedRoute requireFinance><ExpenseSummary /></ProtectedRoute>} />
-          <Route path="/profit-summary" element={<ProtectedRoute requireFinance><ProfitSummary /></ProtectedRoute>} />
-          <Route path="/reports" element={<ProtectedRoute requireFinance><Reports /></ProtectedRoute>} />
+          <Route path="/revenue" element={<Revenue />} />
+          <Route path="/expense-summary" element={<ExpenseSummary />} />
+          <Route path="/profit-summary" element={<ProfitSummary />} />
+          <Route path="/reports" element={<Reports />} />
           <Route path="/users" element={<ProtectedRoute requireOwner><Users /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute requireOwner><Settings /></ProtectedRoute>} />
         </Route>

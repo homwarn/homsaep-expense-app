@@ -13,15 +13,15 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
-  { to: '/', labelKey: 'dashboard', icon: LayoutDashboard, financeOnly: true },
+  { to: '/', labelKey: 'dashboard', icon: LayoutDashboard },
   { to: '/raw-materials', labelKey: 'raw_materials', icon: ShoppingCart },
   { to: '/drinks', labelKey: 'drinks', icon: CupSoda },
   { to: '/expenses', labelKey: 'other_expenses', icon: Receipt },
   { to: '/master-data', labelKey: 'master_data', icon: Database },
-  { to: '/revenue', labelKey: 'revenue', icon: TrendingUp, financeOnly: true },
-  { to: '/expense-summary', labelKey: 'expense_summary', icon: PieChart, financeOnly: true },
-  { to: '/profit-summary', labelKey: 'profit_summary', icon: LineChart, financeOnly: true },
-  { to: '/reports', labelKey: 'reports', icon: FileText, financeOnly: true },
+  { to: '/revenue', labelKey: 'revenue', icon: TrendingUp },
+  { to: '/expense-summary', labelKey: 'expense_summary', icon: PieChart },
+  { to: '/profit-summary', labelKey: 'profit_summary', icon: LineChart },
+  { to: '/reports', labelKey: 'reports', icon: FileText },
   { to: '/users', labelKey: 'users', icon: Users, ownerOnly: true },
   { to: '/settings', labelKey: 'settings', icon: Settings, ownerOnly: true },
 ]

@@ -99,7 +99,7 @@ function ExpensesTab() {
       cell: ({ row }) => (
         <div className="flex gap-1">
           <Button variant="ghost" size="icon" onClick={() => openEdit(row.original)}><Pencil className="h-4 w-4" /></Button>
-          {isOwner && <Button variant="ghost" size="icon" onClick={() => setDeleteId(row.original.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+          {<Button variant="ghost" size="icon" onClick={() => setDeleteId(row.original.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
         </div>
       ),
     },
@@ -194,7 +194,7 @@ function RepairsTab() {
       cell: ({ row }) => (
         <div className="flex gap-1">
           <Button variant="ghost" size="icon" onClick={() => openEdit(row.original)}><Pencil className="h-4 w-4" /></Button>
-          {isOwner && <Button variant="ghost" size="icon" onClick={() => setDeleteId(row.original.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+          {<Button variant="ghost" size="icon" onClick={() => setDeleteId(row.original.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
         </div>
       ),
     },
@@ -264,7 +264,7 @@ function CategoriesTab() {
         {cats.map((c) => (
           <div key={c.id} className="flex items-center justify-between rounded-lg border p-3">
             <span className="flex items-center gap-2 text-sm">{c.name}{c.is_system && <Badge variant="secondary">system</Badge>}</span>
-            {isOwner && !c.is_system && (
+            {!c.is_system && (
               <Button variant="ghost" size="icon" onClick={() => setDeleteId(c.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
             )}
           </div>

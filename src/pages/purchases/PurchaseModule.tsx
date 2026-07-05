@@ -19,7 +19,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { supabase, logActivity } from '@/lib/supabase'
 import { useToast } from '@/components/ui/toast'
-import { useAuth } from '@/contexts/AuthContext'
 import { useI18n } from '@/i18n/I18nProvider'
 import { formatMoney, formatDate, todayISO } from '@/lib/utils'
 import { exportCSV, exportExcel, exportPDF } from '@/lib/export'
@@ -44,7 +43,6 @@ const emptyLine = (): Line => ({ category_id: '', name: '', quantity: 1, unit: '
 
 export function PurchaseModule({ config }: { config: Config }) {
   const { t } = useI18n()
-  const { isOwner } = useAuth()
   const { toast } = useToast()
   const [rows, setRows] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -116,9 +114,12 @@ export function PurchaseModule({ config }: { config: Config }) {
   }
 
   async function ensureItem(categoryId: string, name: string, unit: string) {
-    const exists = items.some((it) => it.category_id === categoryId && it.name.trim().toLowerCase() === name.trim().toLowerCase())
-    if (!exists && name.trim()) {
-      await supabase.from(config.itemTable).insert({ category_id: categoryId || null, name: name.trim(), unit: unit || null })
+    // only remember items that belong to a category, and avoid duplicates (any category)
+    if (!categoryId || !name.trim()) return
+    const key = name.trim().toLowerCase()
+    const exists = items.some((it) => it.name.trim().toLowerCase() === key)
+    if (!exists) {
+      await supabase.from(config.itemTable).insert({ category_id: categoryId, name: name.trim(), unit: unit || null })
     }
   }
 
@@ -178,7 +179,7 @@ export function PurchaseModule({ config }: { config: Config }) {
       cell: ({ row }) => (
         <div className="flex gap-1">
           <Button variant="ghost" size="icon" onClick={() => openEdit(row.original)}><Pencil className="h-4 w-4" /></Button>
-          {isOwner && <Button variant="ghost" size="icon" onClick={() => setDeleteId(row.original.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+          <Button variant="ghost" size="icon" onClick={() => setDeleteId(row.original.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
         </div>
       ),
     },
@@ -310,8 +311,9 @@ export function PurchaseModule({ config }: { config: Config }) {
                         <td className="px-2 py-1.5"><Input type="number" step="any" className="h-9 w-28" value={line.unit_price} onChange={(e) => updateLine(i, { unit_price: Number(e.target.value) })} /></td>
                         <td className="px-2 py-1.5 text-right font-medium">{formatMoney(lineTotal)}</td>
                         <td className="px-1">
-                          {lines.length > 1 && !editingId && (
-                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setLines((ls) => ls.filter((_, idx) => idx !== i))}>
+                          {!editingId && (
+                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title={t('delete')}
+                              onClick={() => setLines((ls) => (ls.length > 1 ? ls.filter((_, idx) => idx !== i) : [emptyLine()]))}>
                               <X className="h-4 w-4 text-destructive" />
                             </Button>
                           )}

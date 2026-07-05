@@ -94,7 +94,7 @@ function SuppliersManager() {
                   <td className="px-4 py-2"><Badge variant={s.is_active ? 'success' : 'secondary'}>{s.is_active ? t('active') : t('inactive')}</Badge></td>
                   <td className="px-4 py-2 text-right">
                     <Button variant="ghost" size="icon" onClick={() => openEdit(s)}><Pencil className="h-4 w-4" /></Button>
-                    {isOwner && <Button variant="ghost" size="icon" onClick={() => setDeleteId(s.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+                    {<Button variant="ghost" size="icon" onClick={() => setDeleteId(s.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
                   </td>
                 </tr>
               ))}
@@ -207,7 +207,7 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
                 <span>{c.name}</span>
                 <div className="flex gap-1">
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditCat(c)}><Pencil className="h-3.5 w-3.5" /></Button>
-                  {isOwner && <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDelCat(c.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>}
+                  {<Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDelCat(c.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>}
                 </div>
               </div>
             ))}
@@ -239,7 +239,7 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
                     <td className="px-4 py-2">{it.unit ?? '-'}</td>
                     <td className="px-4 py-2 text-right">
                       <Button variant="ghost" size="icon" onClick={() => openItemEdit(it)}><Pencil className="h-4 w-4" /></Button>
-                      {isOwner && <Button variant="ghost" size="icon" onClick={() => setDelItem(it.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+                      {<Button variant="ghost" size="icon" onClick={() => setDelItem(it.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
                     </td>
                   </tr>
                 ))}
