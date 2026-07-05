@@ -15,6 +15,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -340,58 +341,42 @@ export function PurchaseModule({ config }: { config: Config }) {
             <DialogDescription>{t('purchase_form_hint')}</DialogDescription>
           </DialogHeader>
 
-          {/* header: date + supplier */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label>{t('date')}</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label className="flex items-center gap-1"><Truck className="h-3.5 w-3.5" />{t('supplier')}</Label>
-              <Select value={supplierId} onValueChange={setSupplierId}>
-                <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-                <SelectContent>{suppliers.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}{s.contact_person ? ` · ${s.contact_person}` : ''}</SelectItem>
-                ))}</SelectContent>
-              </Select>
-            </div>
+          {/* STEP 1 — date */}
+          <div className="space-y-1">
+            <Label><span className="mr-1 text-primary">1.</span>{t('date')}</Label>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
 
-          {/* payment method + status */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label>{t('payment_method')}</Label>
-              <Select value={payMethod} onValueChange={setPayMethod}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">{t('pay_cash')}</SelectItem>
-                  <SelectItem value="transfer">{t('pay_transfer')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>{t('payment_status')}</Label>
-              <Select value={payStatus} onValueChange={setPayStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="paid">{t('pay_paid')}</SelectItem>
-                  <SelectItem value="unpaid">{t('pay_unpaid')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* STEP 2 — choose supplier or category (searchable) */}
+          <div className="space-y-2">
+            <Label><span className="mr-1 text-primary">2.</span>{t('supplier')} / {t('category')}</Label>
+            {!editingId && (
+              <div className="flex rounded-xl border p-1 text-sm">
+                <button type="button" onClick={() => setPickBy('supplier')} className={cn('flex-1 rounded-lg px-3 py-1.5 font-medium', pickBy === 'supplier' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('by_supplier')}</button>
+                <button type="button" onClick={() => setPickBy('category')} className={cn('flex-1 rounded-lg px-3 py-1.5 font-medium', pickBy === 'category' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('by_category')}</button>
+              </div>
+            )}
+            {(editingId || pickBy === 'supplier')
+              ? <Combobox value={supplierId} onChange={setSupplierId} placeholder={`— ${t('supplier')} —`} searchPlaceholder={t('search')}
+                  options={suppliers.map((s) => ({ value: s.id, label: `${s.name}${s.contact_person ? ` · ${s.contact_person}` : ''}` }))} />
+              : <Combobox value={browseCat} onChange={setBrowseCat} placeholder={`— ${t('category')} —`} searchPlaceholder={t('search')}
+                  options={categories.map((c) => ({ value: c.id, label: c.name }))} />}
           </div>
 
-          {/* mode switch (create only) */}
+          {/* STEP 3 — detail or lump */}
           {!editingId && (
-            <div className="flex rounded-xl border p-1 text-sm">
-              <button type="button" onClick={() => setMode('items')} className={cn('flex-1 rounded-lg px-3 py-1.5 font-medium', mode === 'items' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('mode_detail')}</button>
-              <button type="button" onClick={() => setMode('lump')} className={cn('flex-1 rounded-lg px-3 py-1.5 font-medium', mode === 'lump' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('mode_total')}</button>
+            <div className="space-y-2">
+              <Label><span className="mr-1 text-primary">3.</span>{t('entry_mode')}</Label>
+              <div className="flex rounded-xl border p-1 text-sm">
+                <button type="button" onClick={() => setMode('items')} className={cn('flex-1 rounded-lg px-3 py-1.5 font-medium', mode === 'items' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('mode_detail')}</button>
+                <button type="button" onClick={() => setMode('lump')} className={cn('flex-1 rounded-lg px-3 py-1.5 font-medium', mode === 'lump' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('mode_total')}</button>
+              </div>
             </div>
           )}
 
-          {/* currency for manual amounts */}
+          {/* STEP 4 — currency for manual amounts */}
           <div className="flex items-center gap-3">
-            <Label className="whitespace-nowrap">{t('currency')}</Label>
+            <Label className="whitespace-nowrap"><span className="mr-1 text-primary">4.</span>{t('currency')}</Label>
             <Select value={formCurrency} onValueChange={setFormCurrency}>
               <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -415,23 +400,10 @@ export function PurchaseModule({ config }: { config: Config }) {
           {/* ===== ITEMS MODE ===== */}
           {mode === 'items' && (
             <div className="space-y-3">
-              {/* item picker: by supplier or by category */}
+              {/* item picker (driven by step 2 supplier/category selection) */}
               {!editingId && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label>{t('supplied_items')}</Label>
-                    <div className="flex rounded-lg border p-0.5 text-xs">
-                      <button type="button" onClick={() => setPickBy('supplier')} className={cn('rounded-md px-2 py-1', pickBy === 'supplier' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('by_supplier')}</button>
-                      <button type="button" onClick={() => setPickBy('category')} className={cn('rounded-md px-2 py-1', pickBy === 'category' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('by_category')}</button>
-                    </div>
-                  </div>
-
-                  {pickBy === 'category' && (
-                    <Select value={browseCat} onValueChange={setBrowseCat}>
-                      <SelectTrigger><SelectValue placeholder={t('category')} /></SelectTrigger>
-                      <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  )}
+                  <Label><span className="mr-1 text-primary">5.</span>{t('supplied_items')}</Label>
                   {pickBy === 'supplier' && !supplierId && <p className="rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground">{t('select_supplier_first')}</p>}
                   {pickBy === 'supplier' && supplierId && supplierItemList.length === 0 && <p className="rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground">{t('no_mapped_hint')}</p>}
 
@@ -510,6 +482,30 @@ export function PurchaseModule({ config }: { config: Config }) {
               )}
             </div>
           )}
+
+          {/* payment method + status */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label>{t('payment_method')}</Label>
+              <Select value={payMethod} onValueChange={setPayMethod}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">{t('pay_cash')}</SelectItem>
+                  <SelectItem value="transfer">{t('pay_transfer')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>{t('payment_status')}</Label>
+              <Select value={payStatus} onValueChange={setPayStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paid">{t('pay_paid')}</SelectItem>
+                  <SelectItem value="unpaid">{t('pay_unpaid')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
           {/* totals + shipping */}
           <div className="space-y-2 rounded-xl border bg-muted/30 p-4">
