@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { createClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -68,9 +69,25 @@ export default function Users() {
 
   async function onCreate(v: any) {
     try {
-      const res = await invoke('create', { email: v.email, password: v.password, full_name: v.full_name, role: v.role, can_view_finance: v.can_view_finance })
-      if (res?.id) {
-        await supabase.from('profiles').update({ allowed_menus: v.allowed_menus ?? [] }).eq('id', res.id)
+      // Create the auth user via a throwaway client so the admin's own session is untouched.
+      const tmp = createClient(
+        import.meta.env.VITE_SUPABASE_URL as string,
+        import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+        { auth: { persistSession: false, autoRefreshToken: false, storageKey: 'homsaep-signup-temp' } },
+      )
+      const { data, error } = await tmp.auth.signUp({
+        email: v.email,
+        password: v.password,
+        options: { data: { full_name: v.full_name, role: v.role } },
+      })
+      if (error) throw new Error(error.message)
+      const newId = data.user?.id
+      if (newId) {
+        // owner sets role / finance / menu access on the freshly created profile
+        await supabase.from('profiles').update({
+          full_name: v.full_name, role: v.role,
+          can_view_finance: !!v.can_view_finance, allowed_menus: v.allowed_menus ?? [],
+        }).eq('id', newId)
       }
       toast({ title: t('saved') }); setCreateOpen(false); createForm.reset(); load()
     } catch (e: any) {
