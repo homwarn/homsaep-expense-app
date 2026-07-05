@@ -6,14 +6,19 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useI18n } from '@/i18n/I18nProvider'
 import { cn } from '@/lib/utils'
 
+// menus a non-owner sees by default when no explicit permissions are set
+const DEFAULT_EMPLOYEE_MENUS = ['/raw-materials', '/drinks', '/expenses', '/master-data']
+
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { isOwner, canViewFinance } = useAuth()
+  const { isOwner, profile } = useAuth()
   const { t } = useI18n()
 
+  const allowed = profile?.allowed_menus?.length ? profile.allowed_menus : DEFAULT_EMPLOYEE_MENUS
+
   const visible = navItems.filter((item) => {
-    if (item.ownerOnly && !isOwner) return false
-    if (item.financeOnly && !canViewFinance) return false
-    return true
+    if (item.ownerOnly) return isOwner
+    if (isOwner) return true
+    return allowed.includes(item.to)
   })
 
   return (

@@ -15,7 +15,29 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/i18n/I18nProvider'
+import { navItems } from '@/components/layout/nav'
+import { cn } from '@/lib/utils'
 import type { Profile } from '@/types/database'
+
+/** Toggle chips for granting per-user menu access (excludes owner-only menus). */
+function MenuChips({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const { t } = useI18n()
+  const assignable = navItems.filter((n) => !n.ownerOnly)
+  const toggle = (to: string) => onChange(value.includes(to) ? value.filter((x) => x !== to) : [...value, to])
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {assignable.map((n) => {
+        const on = value.includes(n.to)
+        return (
+          <button key={n.to} type="button" onClick={() => toggle(n.to)}
+            className={cn('rounded-full border px-3 py-1 text-xs transition-colors', on ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent')}>
+            {t(n.labelKey)}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function Users() {
   const { t } = useI18n()
@@ -46,7 +68,10 @@ export default function Users() {
 
   async function onCreate(v: any) {
     try {
-      await invoke('create', { email: v.email, password: v.password, full_name: v.full_name, role: v.role, can_view_finance: v.can_view_finance })
+      const res = await invoke('create', { email: v.email, password: v.password, full_name: v.full_name, role: v.role, can_view_finance: v.can_view_finance })
+      if (res?.id) {
+        await supabase.from('profiles').update({ allowed_menus: v.allowed_menus ?? [] }).eq('id', res.id)
+      }
       toast({ title: t('saved') }); setCreateOpen(false); createForm.reset(); load()
     } catch (e: any) {
       toast({ title: t('error'), description: e.message, variant: 'error' })
@@ -58,6 +83,7 @@ export default function Users() {
     const { error } = await supabase.from('profiles').update({
       full_name: v.full_name, phone: v.phone || null, role: v.role,
       can_view_finance: v.can_view_finance, is_active: v.is_active,
+      allowed_menus: v.allowed_menus ?? [],
     }).eq('id', editUser.id)
     if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
     toast({ title: t('saved') }); setEditUser(null); load()
@@ -75,7 +101,7 @@ export default function Users() {
 
   function openEdit(u: Profile) {
     setEditUser(u)
-    editForm.reset({ full_name: u.full_name, phone: u.phone ?? '', role: u.role, can_view_finance: u.can_view_finance, is_active: u.is_active })
+    editForm.reset({ full_name: u.full_name, phone: u.phone ?? '', role: u.role, can_view_finance: u.can_view_finance, is_active: u.is_active, allowed_menus: u.allowed_menus ?? [] })
   }
 
   const columns: ColumnDef<Profile, unknown>[] = [
@@ -98,7 +124,7 @@ export default function Users() {
   return (
     <div>
       <PageHeader title={t('users')} icon={<UsersIcon className="h-5 w-5" />}
-        actions={<Button onClick={() => { createForm.reset({ role: 'employee', can_view_finance: false }); setCreateOpen(true) }}><Plus className="h-4 w-4" />{t('create_user')}</Button>} />
+        actions={<Button onClick={() => { createForm.reset({ role: 'employee', can_view_finance: false, allowed_menus: ['/raw-materials'] }); setCreateOpen(true) }}><Plus className="h-4 w-4" />{t('create_user')}</Button>} />
       <Card><CardContent className="p-4"><DataTable columns={columns} data={rows} loading={loading} /></CardContent></Card>
 
       {/* Create */}
@@ -116,6 +142,11 @@ export default function Users() {
               </Select>
             </div>
             <div className="flex items-center gap-3"><Switch checked={createForm.watch('can_view_finance')} onCheckedChange={(c) => createForm.setValue('can_view_finance', c)} /><Label>{t('finance_access')}</Label></div>
+            <div className="space-y-1.5">
+              <Label>{t('menu_access')}</Label>
+              <p className="text-[11px] text-muted-foreground">{t('menu_access_hint')}</p>
+              <MenuChips value={createForm.watch('allowed_menus') ?? []} onChange={(v) => createForm.setValue('allowed_menus', v)} />
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>{t('cancel')}</Button>
               <Button type="submit">{t('save')}</Button>
@@ -139,6 +170,11 @@ export default function Users() {
             </div>
             <div className="flex items-center gap-3"><Switch checked={editForm.watch('can_view_finance')} onCheckedChange={(c) => editForm.setValue('can_view_finance', c)} /><Label>{t('finance_access')}</Label></div>
             <div className="flex items-center gap-3"><Switch checked={editForm.watch('is_active')} onCheckedChange={(c) => editForm.setValue('is_active', c)} /><Label>{t('active')}</Label></div>
+            <div className="space-y-1.5">
+              <Label>{t('menu_access')}</Label>
+              <p className="text-[11px] text-muted-foreground">{t('menu_access_hint')}</p>
+              <MenuChips value={editForm.watch('allowed_menus') ?? []} onChange={(v) => editForm.setValue('allowed_menus', v)} />
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditUser(null)}>{t('cancel')}</Button>
               <Button type="submit">{t('save')}</Button>

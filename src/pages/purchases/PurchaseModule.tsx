@@ -97,7 +97,7 @@ export function PurchaseModule({ config }: { config: Config }) {
     setLoading(true)
     const { data } = await supabase
       .from(config.table)
-      .select(`*, supplier:suppliers(id,name), category:${config.categoryTable}(id,name)`)
+      .select(`*, supplier:suppliers(id,name), category:${config.categoryTable}(id,name), creator:profiles!created_by(full_name)`)
       .order('purchase_date', { ascending: false })
     setRows(data ?? [])
     setLoading(false)
@@ -249,6 +249,7 @@ export function PurchaseModule({ config }: { config: Config }) {
     { accessorFn: (r) => r.category?.name ?? '-', id: 'category', header: t('category') },
     { accessorKey: config.nameField, header: t('name') },
     { accessorFn: (r) => r.supplier?.name ?? '-', id: 'supplier', header: t('supplier') },
+    { accessorFn: (r) => r.creator?.full_name ?? '-', id: 'creator', header: t('created_by') },
     { accessorKey: 'quantity', header: t('quantity') },
     { accessorKey: 'unit', header: t('unit') },
     { accessorKey: 'unit_price', header: t('unit_price'), cell: ({ row }) => formatMoney(row.original.unit_price) },
