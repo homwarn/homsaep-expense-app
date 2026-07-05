@@ -21,6 +21,7 @@ import {
 import { supabase, logActivity } from '@/lib/supabase'
 import { useToast } from '@/components/ui/toast'
 import { useI18n } from '@/i18n/I18nProvider'
+import { useRates } from '@/hooks/useRates'
 import { formatMoney, formatDate, todayISO } from '@/lib/utils'
 import { exportCSV, exportExcel, exportPDF } from '@/lib/export'
 import { cn } from '@/lib/utils'
@@ -47,6 +48,7 @@ const emptyLine = (): Line => ({ category_id: '', name: '', quantity: 1, unit: '
 export function PurchaseModule({ config }: { config: Config }) {
   const { t } = useI18n()
   const { toast } = useToast()
+  const { rates } = useRates()
   const [rows, setRows] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [suppliers, setSuppliers] = useState<any[]>([])
@@ -66,11 +68,13 @@ export function PurchaseModule({ config }: { config: Config }) {
   const [payStatus, setPayStatus] = useState('paid')
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
-  const lakPrice = (it: any) => (it?.currency && it.currency !== 'LAK' ? (Number(it.price) || 0) * (Number(it.exchange_rate) || 1) : (Number(it?.price) || 0))
+  const lakPrice = (it: any) => (it?.currency && it.currency !== 'LAK' ? (Number(it.price) || 0) * (rates[it.currency] ?? 1) : (Number(it?.price) || 0))
 
   const [mappedIds, setMappedIds] = useState<Set<string>>(new Set())
   const [picked, setPicked] = useState<Record<string, Picked>>({})
   const [customLines, setCustomLines] = useState<Line[]>([])
+  const [pickBy, setPickBy] = useState<'supplier' | 'category'>('supplier')
+  const [browseCat, setBrowseCat] = useState('')
 
   const junction = config.itemTable === 'raw_materials'
     ? { table: 'supplier_raw_materials', col: 'raw_material_id' }
@@ -117,16 +121,17 @@ export function PurchaseModule({ config }: { config: Config }) {
   )
 
   const supplierItemList = supplierId && mappedIds.size ? items.filter((i) => mappedIds.has(i.id)) : []
-  const groupedSupplierItems = useMemo(() => {
+  const displayList = pickBy === 'supplier' ? supplierItemList : (browseCat ? items.filter((i) => i.category_id === browseCat) : [])
+  const displayGroups = useMemo(() => {
     const m = new Map<string, any[]>()
-    supplierItemList.forEach((it) => {
+    displayList.forEach((it) => {
       const k = it.category?.name ?? '—'
       if (!m.has(k)) m.set(k, [])
       m.get(k)!.push(it)
     })
     return [...m.entries()]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supplierItemList.map((i) => i.id).join(',')])
+  }, [displayList.map((i) => i.id).join(','), pickBy, browseCat])
 
   const pickedTotal = Object.values(picked).reduce((s, p) => s + (Number(p.quantity) || 0) * (Number(p.unit_price) || 0), 0)
   const customTotal = customLines.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unit_price) || 0), 0)
@@ -136,7 +141,7 @@ export function PurchaseModule({ config }: { config: Config }) {
   function resetForm() {
     setEditingId(null); setMode('items'); setDate(todayISO()); setSupplierId('')
     setShipping(0); setRemark(''); setLumpAmount(0); setPicked({}); setCustomLines([])
-    setPayMethod('cash'); setPayStatus('paid')
+    setPayMethod('cash'); setPayStatus('paid'); setPickBy('supplier'); setBrowseCat('')
   }
   function openCreate() { resetForm(); setDialogOpen(true) }
   function openEdit(row: any) {
@@ -392,13 +397,27 @@ export function PurchaseModule({ config }: { config: Config }) {
           {/* ===== ITEMS MODE ===== */}
           {mode === 'items' && (
             <div className="space-y-3">
-              {/* supplier mapped items */}
+              {/* item picker: by supplier or by category */}
               {!editingId && (
                 <div className="space-y-2">
-                  <Label>{t('supplied_items')}</Label>
-                  {!supplierId && <p className="rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground">{t('select_supplier_first')}</p>}
-                  {supplierId && supplierItemList.length === 0 && <p className="rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground">{t('no_mapped_hint')}</p>}
-                  {groupedSupplierItems.map(([cat, list]) => (
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>{t('supplied_items')}</Label>
+                    <div className="flex rounded-lg border p-0.5 text-xs">
+                      <button type="button" onClick={() => setPickBy('supplier')} className={cn('rounded-md px-2 py-1', pickBy === 'supplier' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('by_supplier')}</button>
+                      <button type="button" onClick={() => setPickBy('category')} className={cn('rounded-md px-2 py-1', pickBy === 'category' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('by_category')}</button>
+                    </div>
+                  </div>
+
+                  {pickBy === 'category' && (
+                    <Select value={browseCat} onValueChange={setBrowseCat}>
+                      <SelectTrigger><SelectValue placeholder={t('category')} /></SelectTrigger>
+                      <SelectContent>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  )}
+                  {pickBy === 'supplier' && !supplierId && <p className="rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground">{t('select_supplier_first')}</p>}
+                  {pickBy === 'supplier' && supplierId && supplierItemList.length === 0 && <p className="rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground">{t('no_mapped_hint')}</p>}
+
+                  {displayGroups.map(([cat, list]) => (
                     <div key={cat}>
                       <p className="mb-1 text-xs font-semibold text-muted-foreground">{cat}</p>
                       <div className="space-y-1.5">
@@ -413,7 +432,9 @@ export function PurchaseModule({ config }: { config: Config }) {
                                   {on && <Check className="h-4 w-4" />}
                                 </button>
                                 <span className="flex-1 text-sm font-medium">{it.name}</span>
-                                <span className="text-xs text-muted-foreground">{formatMoney(it.price)}{it.unit ? ` / ${it.unit}` : ''}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {it.currency && it.currency !== 'LAK' ? `${formatMoney(it.price)} ${it.currency} ≈ ` : ''}{formatMoney(lakPrice(it))} LAK{it.unit ? ` / ${it.unit}` : ''}
+                                </span>
                               </div>
                               {on && (
                                 <div className="mt-2 grid grid-cols-3 gap-2">

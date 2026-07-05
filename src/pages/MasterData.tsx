@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Database, Plus, Pencil, Trash2, Truck, Tag, Package } from 'lucide-react'
+import { Database, Plus, Pencil, Trash2, Truck, Tag, Package, Coins, Save } from 'lucide-react'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { useI18n } from '@/i18n/I18nProvider'
 import { cn, formatMoney } from '@/lib/utils'
+import { useRates } from '@/hooks/useRates'
 
 export default function MasterData() {
   const { t } = useI18n()
@@ -27,12 +28,53 @@ export default function MasterData() {
           <TabsTrigger value="suppliers"><Truck className="mr-1 h-4 w-4" />{t('suppliers')}</TabsTrigger>
           <TabsTrigger value="rm"><Package className="mr-1 h-4 w-4" />{t('raw_materials_data')}</TabsTrigger>
           <TabsTrigger value="drink"><Package className="mr-1 h-4 w-4" />{t('drinks_data')}</TabsTrigger>
+          <TabsTrigger value="rates"><Coins className="mr-1 h-4 w-4" />{t('exchange_rates')}</TabsTrigger>
         </TabsList>
         <TabsContent value="suppliers"><SuppliersManager /></TabsContent>
         <TabsContent value="rm"><CategoryItemManager categoryTable="raw_material_categories" itemTable="raw_materials" /></TabsContent>
         <TabsContent value="drink"><CategoryItemManager categoryTable="drink_categories" itemTable="drinks" /></TabsContent>
+        <TabsContent value="rates"><RatesManager /></TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+/* ============ Exchange Rates ============ */
+function RatesManager() {
+  const { t } = useI18n()
+  const { toast } = useToast()
+  const { rates, reload } = useRates()
+  const [form, setForm] = useState<Record<string, string>>({ THB: '', USD: '', CNY: '' })
+
+  useEffect(() => {
+    setForm({ THB: String(rates.THB ?? ''), USD: String(rates.USD ?? ''), CNY: String(rates.CNY ?? '') })
+  }, [rates.THB, rates.USD, rates.CNY])
+
+  async function save() {
+    const rows = ['THB', 'USD', 'CNY'].map((c) => ({ currency: c, rate: Number(form[c]) || 0, updated_at: new Date().toISOString() }))
+    const { error } = await supabase.from('exchange_rates').upsert(rows, { onConflict: 'currency' })
+    if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
+    toast({ title: t('saved') }); reload()
+  }
+
+  return (
+    <Card className="max-w-lg">
+      <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Coins className="h-4 w-4" />{t('exchange_rates')}</CardTitle></CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">{t('exchange_rates_hint')}</p>
+        {(['THB', 'USD', 'CNY'] as const).map((c) => (
+          <div key={c} className="flex items-center gap-3">
+            <span className="w-16 font-semibold">1 {c}</span>
+            <span className="text-muted-foreground">=</span>
+            <Input type="number" step="any" value={form[c]} onChange={(e) => setForm({ ...form, [c]: e.target.value })} className="flex-1" />
+            <span className="text-muted-foreground">LAK</span>
+          </div>
+        ))}
+        <div className="flex justify-end">
+          <Button onClick={save}><Save className="h-4 w-4" />{t('save')}</Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -57,13 +99,37 @@ function SuppliersManager() {
     const { data } = await supabase.from('suppliers').select('*').order('name')
     setRows(data ?? [])
   }
+  const [rawCats, setRawCats] = useState<any[]>([])
+  const [drinkCats, setDrinkCats] = useState<any[]>([])
+  const [newItem, setNewItem] = useState<Record<string, string>>({})
+
   async function loadItems() {
-    const [{ data: rm }, { data: dk }] = await Promise.all([
-      supabase.from('raw_materials').select('id,name,category:raw_material_categories(name)').order('name'),
-      supabase.from('drinks').select('id,name,category:drink_categories(name)').order('name'),
+    const [{ data: rm }, { data: dk }, { data: rc }, { data: dc }] = await Promise.all([
+      supabase.from('raw_materials').select('id,name,category_id,category:raw_material_categories(name)').order('name'),
+      supabase.from('drinks').select('id,name,category_id,category:drink_categories(name)').order('name'),
+      supabase.from('raw_material_categories').select('id,name').order('name'),
+      supabase.from('drink_categories').select('id,name').order('name'),
     ])
     setRawItems(rm ?? [])
     setDrinkItems(dk ?? [])
+    setRawCats(rc ?? [])
+    setDrinkCats(dc ?? [])
+  }
+
+  async function addItemInline(categoryId: string) {
+    const name = (newItem[categoryId] ?? '').trim()
+    if (!name) return
+    const table = mapTab === 'rm' ? 'raw_materials' : 'drinks'
+    const { data, error } = await supabase.from(table).insert({ name, category_id: categoryId }).select('id').single()
+    if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
+    await loadItems()
+    // auto-select the new item as supplied
+    if (data) {
+      if (mapTab === 'rm') setSelRM((s) => new Set(s).add(data.id))
+      else setSelDK((s) => new Set(s).add(data.id))
+    }
+    setNewItem((m) => ({ ...m, [categoryId]: '' }))
+    toast({ title: t('saved') })
   }
   useEffect(() => { load(); loadItems() }, [])
 
@@ -127,17 +193,8 @@ function SuppliersManager() {
     toast({ title: t('deleted') }); setDeleteId(null); load()
   }
 
-  // group items by category name for the picker
-  const groupByCat = (list: any[]) => {
-    const m = new Map<string, any[]>()
-    list.forEach((it) => {
-      const k = it.category?.name ?? '—'
-      if (!m.has(k)) m.set(k, [])
-      m.get(k)!.push(it)
-    })
-    return [...m.entries()]
-  }
   const activeList = mapTab === 'rm' ? rawItems : drinkItems
+  const activeCats = mapTab === 'rm' ? rawCats : drinkCats
   const activeSel = mapTab === 'rm' ? selRM : selDK
   const activeSetter = mapTab === 'rm' ? setSelRM : setSelDK
 
@@ -195,24 +252,38 @@ function SuppliersManager() {
                 </div>
               </div>
               <p className="text-[11px] text-muted-foreground">{t('supplied_items_hint')}</p>
-              <div className="max-h-48 space-y-3 overflow-y-auto pr-1">
-                {activeList.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">{t('no_data')}</p>}
-                {groupByCat(activeList).map(([cat, list]) => (
-                  <div key={cat}>
-                    <p className="mb-1 text-xs font-semibold text-muted-foreground">{cat}</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {list.map((it) => {
-                        const on = activeSel.has(it.id)
-                        return (
-                          <button key={it.id} type="button" onClick={() => toggle(activeSel, it.id, activeSetter)}
-                            className={cn('rounded-full border px-3 py-1 text-xs transition-colors', on ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent')}>
-                            {it.name}
-                          </button>
-                        )
-                      })}
+              <div className="max-h-64 space-y-3 overflow-y-auto pr-1">
+                {activeCats.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">{t('no_data')}</p>}
+                {activeCats.map((cat) => {
+                  const list = activeList.filter((it) => it.category_id === cat.id)
+                  return (
+                    <div key={cat.id}>
+                      <p className="mb-1 text-xs font-semibold text-muted-foreground">{cat.name}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {list.map((it) => {
+                          const on = activeSel.has(it.id)
+                          return (
+                            <button key={it.id} type="button" onClick={() => toggle(activeSel, it.id, activeSetter)}
+                              className={cn('rounded-full border px-3 py-1 text-xs transition-colors', on ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent')}>
+                              {it.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {/* inline add item to this category */}
+                      <div className="mt-1.5 flex gap-1.5">
+                        <Input
+                          value={newItem[cat.id] ?? ''}
+                          onChange={(e) => setNewItem((m) => ({ ...m, [cat.id]: e.target.value }))}
+                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addItemInline(cat.id))}
+                          placeholder={t('add_item')}
+                          className="h-8 flex-1 text-xs"
+                        />
+                        <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => addItemInline(cat.id)}><Plus className="h-4 w-4" /></Button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -232,6 +303,7 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
   const { t } = useI18n()
   const { isOwner } = useAuth()
   const { toast } = useToast()
+  const { rates } = useRates()
   const [categories, setCategories] = useState<any[]>([])
   const [items, setItems] = useState<any[]>([])
   const [selectedCat, setSelectedCat] = useState<string>('') // '' = all
@@ -281,7 +353,7 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
   async function saveItem() {
     if (!itemForm.name.trim()) return
     const cur = itemForm.currency || 'LAK'
-    const payload = { name: itemForm.name.trim(), category_id: itemForm.category_id || null, unit: itemForm.unit || null, price: Number(itemForm.price) || 0, currency: cur, exchange_rate: cur === 'LAK' ? 1 : Number(itemForm.exchange_rate) || 1 }
+    const payload = { name: itemForm.name.trim(), category_id: itemForm.category_id || null, unit: itemForm.unit || null, price: Number(itemForm.price) || 0, currency: cur }
     let error
     if (editItem) ({ error } = await supabase.from(itemTable).update(payload).eq('id', editItem.id))
     else ({ error } = await supabase.from(itemTable).insert(payload))
@@ -362,7 +434,7 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
                     <td className="px-4 py-2">{it.unit ?? '-'}</td>
                     <td className="px-4 py-2 text-right">
                       {it.currency && it.currency !== 'LAK'
-                        ? <>{formatMoney(it.price ?? 0)} {it.currency}<span className="block text-[11px] text-muted-foreground">≈ {formatMoney((it.price ?? 0) * (it.exchange_rate ?? 1))} LAK</span></>
+                        ? <>{formatMoney(it.price ?? 0)} {it.currency}<span className="block text-[11px] text-muted-foreground">≈ {formatMoney((it.price ?? 0) * (rates[it.currency] ?? 1))} LAK</span></>
                         : formatMoney(it.price ?? 0)}
                     </td>
                     <td className="px-4 py-2 text-right">
@@ -403,14 +475,12 @@ function CategoryItemManager({ categoryTable, itemTable }: { categoryTable: stri
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>{t('price')} ({itemForm.currency})</Label><Input type="number" step="any" value={itemForm.price} onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })} placeholder="0" /></div>
-              {itemForm.currency !== 'LAK' && (
-                <div className="space-y-1"><Label>{t('exchange_rate')}</Label><Input type="number" step="any" value={itemForm.exchange_rate} onChange={(e) => setItemForm({ ...itemForm, exchange_rate: e.target.value })} placeholder="1" /></div>
-              )}
-            </div>
+            <div className="space-y-1"><Label>{t('price')} ({itemForm.currency})</Label><Input type="number" step="any" value={itemForm.price} onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })} placeholder="0" /></div>
             {itemForm.currency !== 'LAK' && (
-              <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm">{t('price_lak')}: <span className="font-semibold text-primary">{formatMoney((Number(itemForm.price) || 0) * (Number(itemForm.exchange_rate) || 0))} LAK</span></p>
+              <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
+                {t('price_lak')}: <span className="font-semibold text-primary">{formatMoney((Number(itemForm.price) || 0) * (rates[itemForm.currency] ?? 1))} LAK</span>
+                <span className="block text-[11px] text-muted-foreground">1 {itemForm.currency} = {formatMoney(rates[itemForm.currency] ?? 1)} LAK · {t('exchange_rates')} → {t('master_data')}</span>
+              </p>
             )}
           </div>
           <DialogFooter>
