@@ -75,6 +75,7 @@ export function PurchaseModule({ config }: { config: Config }) {
   const [customLines, setCustomLines] = useState<Line[]>([])
   const [pickBy, setPickBy] = useState<'supplier' | 'category'>('supplier')
   const [browseCat, setBrowseCat] = useState('')
+  const [formCurrency, setFormCurrency] = useState('LAK') // currency for manually entered amounts
 
   const junction = config.itemTable === 'raw_materials'
     ? { table: 'supplier_raw_materials', col: 'raw_material_id' }
@@ -133,21 +134,23 @@ export function PurchaseModule({ config }: { config: Config }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayList.map((i) => i.id).join(','), pickBy, browseCat])
 
+  // manual amounts are entered in `formCurrency` and converted to LAK
+  const fx = formCurrency === 'LAK' ? 1 : (rates[formCurrency] ?? 1)
   const pickedTotal = Object.values(picked).reduce((s, p) => s + (Number(p.quantity) || 0) * (Number(p.unit_price) || 0), 0)
-  const customTotal = customLines.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unit_price) || 0), 0)
-  const subtotal = mode === 'lump' ? (Number(lumpAmount) || 0) : pickedTotal + customTotal
+  const customTotal = customLines.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unit_price) || 0) * fx, 0)
+  const subtotal = mode === 'lump' ? (Number(lumpAmount) || 0) * fx : pickedTotal + customTotal
   const grandTotal = subtotal + (Number(shipping) || 0)
 
   function resetForm() {
     setEditingId(null); setMode('items'); setDate(todayISO()); setSupplierId('')
     setShipping(0); setRemark(''); setLumpAmount(0); setPicked({}); setCustomLines([])
-    setPayMethod('cash'); setPayStatus('paid'); setPickBy('supplier'); setBrowseCat('')
+    setPayMethod('cash'); setPayStatus('paid'); setPickBy('supplier'); setBrowseCat(''); setFormCurrency('LAK')
   }
   function openCreate() { resetForm(); setDialogOpen(true) }
   function openEdit(row: any) {
     setEditingId(row.id); setMode('items'); setDate(row.purchase_date); setSupplierId(row.supplier_id ?? '')
     setShipping(row.shipping_cost ?? 0); setRemark(row.remark ?? ''); setLumpAmount(0); setPicked({})
-    setPayMethod(row.payment_method ?? 'cash'); setPayStatus(row.payment_status ?? 'paid')
+    setPayMethod(row.payment_method ?? 'cash'); setPayStatus(row.payment_status ?? 'paid'); setFormCurrency('LAK')
     setCustomLines([{ category_id: row.category_id ?? '', name: row[config.nameField], quantity: row.quantity, unit: row.unit ?? '', unit_price: row.unit_price }])
     setDialogOpen(true)
   }
@@ -200,7 +203,7 @@ export function PurchaseModule({ config }: { config: Config }) {
       const { error } = await supabase.from(config.table).insert({
         purchase_date: date, supplier_id: supplierId || null, category_id: null,
         [config.nameField]: remark.trim() || t('mode_total'), quantity: 1, unit: null,
-        unit_price: Number(lumpAmount), shipping_cost: Number(shipping) || 0, remark: remark || null,
+        unit_price: (Number(lumpAmount) || 0) * fx, shipping_cost: Number(shipping) || 0, remark: remark || null,
         payment_method: payMethod, payment_status: payStatus, created_by: user?.id,
       })
       if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
@@ -214,7 +217,7 @@ export function PurchaseModule({ config }: { config: Config }) {
       const it = items.find((x) => x.id === id)
       return { category_id: it?.category_id ?? null, name: it?.name ?? '', quantity: Number(p.quantity), unit: p.unit || null, unit_price: Number(p.unit_price) }
     })
-    const customRows = customLines.filter((l) => l.name.trim()).map((l) => ({ category_id: l.category_id || null, name: l.name.trim(), quantity: Number(l.quantity), unit: l.unit || null, unit_price: Number(l.unit_price) }))
+    const customRows = customLines.filter((l) => l.name.trim()).map((l) => ({ category_id: l.category_id || null, name: l.name.trim(), quantity: Number(l.quantity), unit: l.unit || null, unit_price: (Number(l.unit_price) || 0) * fx }))
     const all = [...pickedRows, ...customRows]
     if (!all.length) return toast({ title: t('error'), description: t('item_name'), variant: 'error' })
 
@@ -386,10 +389,25 @@ export function PurchaseModule({ config }: { config: Config }) {
             </div>
           )}
 
+          {/* currency for manual amounts */}
+          <div className="flex items-center gap-3">
+            <Label className="whitespace-nowrap">{t('currency')}</Label>
+            <Select value={formCurrency} onValueChange={setFormCurrency}>
+              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="LAK">LAK ₭</SelectItem>
+                <SelectItem value="THB">THB ฿</SelectItem>
+                <SelectItem value="USD">USD $</SelectItem>
+                <SelectItem value="CNY">CNY ¥</SelectItem>
+              </SelectContent>
+            </Select>
+            {formCurrency !== 'LAK' && <span className="text-xs text-muted-foreground">1 {formCurrency} = {formatMoney(fx)} LAK</span>}
+          </div>
+
           {/* ===== LUMP MODE ===== */}
           {mode === 'lump' && !editingId && (
             <div className="space-y-1">
-              <Label>{t('bill_amount')}</Label>
+              <Label>{t('bill_amount')} ({formCurrency})</Label>
               <Input type="number" step="any" value={lumpAmount} onChange={(e) => setLumpAmount(Number(e.target.value))} placeholder="0" />
             </div>
           )}

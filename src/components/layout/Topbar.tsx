@@ -7,6 +7,7 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { GlobalSearch } from '@/components/common/GlobalSearch'
+import { RatesButton } from '@/components/common/RatesButton'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -47,6 +48,8 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
       </button>
 
       <div className="flex items-center gap-1">
+        <RatesButton />
+
         <Button variant="ghost" size="icon" onClick={() => setLang(lang === 'lo' ? 'en' : 'lo')} title="Language">
           <Languages className="h-5 w-5" />
           <span className="ml-0.5 text-xs font-semibold uppercase">{lang}</span>
