@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { LineChart, Wallet, UtensilsCrossed, CupSoda } from 'lucide-react'
+import { LineChart, Wallet, UtensilsCrossed, CupSoda, Boxes } from 'lucide-react'
 import { PageHeader } from '@/components/common/PageHeader'
 import { StatCard } from '@/components/common/StatCard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -34,23 +34,27 @@ export default function ProfitSummary() {
     })()
   }, [])
 
-  // Profit split by revenue type (proportional share of total expense).
-  const materialProfit = month ? month.materialRevenue - month.expense * (month.revenue ? month.materialRevenue / month.revenue : 0) : 0
-  const drinkProfit = month ? month.drinkRevenue - month.expense * (month.revenue ? month.drinkRevenue / month.revenue : 0) : 0
+  // Profit per type = type revenue − directly attributable cost.
+  const materialProfit = month ? month.materialRevenue - month.materialCost : 0
+  const drinkProfit = month ? month.drinkRevenue - month.drinkCost : 0
+  const otherProfit = month ? month.otherRevenue - month.otherExpense : 0
 
   return (
     <div>
       <PageHeader title={t('profit_summary')} icon={<LineChart className="h-5 w-5" />} subtitle="Profit = Revenue − Expense" />
 
+      <p className="mb-2 text-sm font-semibold text-muted-foreground">{t('profit_total_group')}</p>
       <div className="mb-4 grid gap-4 sm:grid-cols-3">
         <StatCard label={t('today_profit')} value={formatMoney(day?.profit)} icon={Wallet} tone="primary" loading={loading} />
         <StatCard label={t('monthly_profit')} value={formatMoney(month?.profit)} icon={Wallet} tone="emerald" growth={month && lastMonth ? growth(month.profit, lastMonth.profit) : null} loading={loading} />
         <StatCard label={t('yearly_profit')} value={formatMoney(year?.profit)} icon={Wallet} tone="sky" loading={loading} />
       </div>
 
-      <div className="mb-4 grid gap-4 sm:grid-cols-2">
-        <StatCard label={`${t('rev_material')} (${t('monthly')})`} value={formatMoney(materialProfit)} icon={UtensilsCrossed} tone="amber" loading={loading} />
-        <StatCard label={`${t('rev_drink')} (${t('monthly')})`} value={formatMoney(drinkProfit)} icon={CupSoda} tone="violet" loading={loading} />
+      <p className="mb-2 text-sm font-semibold text-muted-foreground">{t('profit_by_type')} · {t('monthly')}</p>
+      <div className="mb-4 grid gap-4 sm:grid-cols-3">
+        <StatCard label={t('profit_material')} value={formatMoney(materialProfit)} icon={UtensilsCrossed} tone="amber" loading={loading} />
+        <StatCard label={t('profit_drink')} value={formatMoney(drinkProfit)} icon={CupSoda} tone="violet" loading={loading} />
+        <StatCard label={t('profit_other')} value={formatMoney(otherProfit)} icon={Boxes} tone="sky" loading={loading} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

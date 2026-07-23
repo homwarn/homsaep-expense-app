@@ -5,6 +5,9 @@ export interface RangeTotals {
   materialRevenue: number
   drinkRevenue: number
   otherRevenue: number
+  materialCost: number
+  drinkCost: number
+  otherExpense: number
   expense: number
   profit: number
 }
@@ -36,7 +39,11 @@ export async function getTotals(from: string, to: string): Promise<RangeTotals> 
     sumColumn('repairs', 'total_cost', 'repair_date', from, to),
   ])
   const expense = rm + dr + otherExp + repairs
-  return { revenue, materialRevenue, drinkRevenue, otherRevenue, expense, profit: revenue - expense }
+  return {
+    revenue, materialRevenue, drinkRevenue, otherRevenue,
+    materialCost: rm, drinkCost: dr, otherExpense: otherExp + repairs,
+    expense, profit: revenue - expense,
+  }
 }
 
 /** Expense broken down by category for a range → [{name, value}] */

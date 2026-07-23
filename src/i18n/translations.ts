@@ -193,6 +193,16 @@ export const translations = {
   rev_drink: { lo: 'ຂາຍເຄື່ອງດື່ມ', en: 'Drink Sales' },
   rev_other: { lo: 'ອື່ນໆ', en: 'Other' },
   rev_daily_total: { lo: 'ລາຍຮັບລວມໃນມື້', en: 'Daily Total' },
+  rev_multi_hint: {
+    lo: 'ໃສ່ສະເພາະປະເພດທີ່ມີ — ຈະບັນທຶກແຍກແຖວຕາມປະເພດ. «ລາຍຮັບລວມໃນມື້» ໃຊ້ເມື່ອບໍ່ຢາກແຍກປະເພດ',
+    en: 'Fill only the types you have — each is saved as a separate row. Use "Daily total" when you don\'t want to split by type',
+  },
+  enter_amount_hint: { lo: 'ໃສ່ຢ່າງໜ້ອຍ 1 ຈຳນວນ', en: 'Enter at least one amount' },
+  profit_total_group: { lo: 'ກຳໄລລວມ', en: 'Total Profit' },
+  profit_by_type: { lo: 'ກຳໄລຕໍ່ປະເພດ', en: 'Profit by Type' },
+  profit_material: { lo: 'ກຳໄລວັດຖຸດິບ', en: 'Material Profit' },
+  profit_drink: { lo: 'ກຳໄລເຄື່ອງດື່ມ', en: 'Drink Profit' },
+  profit_other: { lo: 'ກຳໄລອື່ນໆ', en: 'Other Profit' },
 } as const
 
 export type TranslationKey = keyof typeof translations

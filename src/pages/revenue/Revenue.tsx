@@ -47,18 +47,34 @@ export default function Revenue() {
   }
   useEffect(() => { load() }, [])
 
-  function openCreate() { setEditing(null); reset({ revenue_date: todayISO(), type: 'material', amount: 0, remark: '' }); setOpen(true) }
+  function openCreate() { setEditing(null); reset({ revenue_date: todayISO(), type: 'material', amount: 0, remark: '', amt_material: 0, amt_drink: 0, amt_other: 0, amt_daily_total: 0 }); setOpen(true) }
   const typeLabel = (ty: string) => ty === 'material' ? t('rev_material') : ty === 'drink' ? t('rev_drink') : ty === 'daily_total' ? t('rev_daily_total') : t('rev_other')
   function openEdit(r: any) { setEditing(r); reset(r); setOpen(true) }
 
   async function onSubmit(v: any) {
     const { data: { user } } = await supabase.auth.getUser()
-    const payload: any = { revenue_date: v.revenue_date, type: v.type, amount: Number(v.amount), remark: v.remark || null }
-    let error
-    if (editing) ({ error } = await supabase.from('revenues').update(payload).eq('id', editing.id))
-    else { payload.created_by = user?.id; ({ error } = await supabase.from('revenues').insert(payload)) }
+
+    // ---- edit: single row ----
+    if (editing) {
+      const payload: any = { revenue_date: v.revenue_date, type: v.type, amount: Number(v.amount), remark: v.remark || null }
+      const { error } = await (supabase.from('revenues') as any).update(payload).eq('id', editing.id)
+      if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
+      logActivity('update', 'revenues', editing.id)
+      toast({ title: t('saved') }); setOpen(false); load()
+      return
+    }
+
+    // ---- create: one row per non-zero type amount ----
+    const entries: [string, any][] = [
+      ['material', v.amt_material], ['drink', v.amt_drink], ['other', v.amt_other], ['daily_total', v.amt_daily_total],
+    ]
+    const payloads: any[] = entries
+      .filter(([, amt]) => Number(amt) > 0)
+      .map(([type, amt]) => ({ revenue_date: v.revenue_date, type, amount: Number(amt), remark: v.remark || null, created_by: user?.id }))
+    if (!payloads.length) return toast({ title: t('error'), description: t('enter_amount_hint'), variant: 'error' })
+    const { error } = await (supabase.from('revenues') as any).insert(payloads)
     if (error) return toast({ title: t('error'), description: error.message, variant: 'error' })
-    logActivity(editing ? 'update' : 'insert', 'revenues', editing?.id)
+    logActivity('insert', 'revenues')
     toast({ title: t('saved') }); setOpen(false); load()
   }
   async function confirmDelete() {
@@ -66,6 +82,10 @@ export default function Revenue() {
     await supabase.from('revenues').delete().eq('id', deleteId)
     toast({ title: t('deleted') }); setDeleteId(null); load()
   }
+
+  const createTotal =
+    (Number(watch('amt_material')) || 0) + (Number(watch('amt_drink')) || 0) +
+    (Number(watch('amt_other')) || 0) + (Number(watch('amt_daily_total')) || 0)
 
   const columns: ColumnDef<any, unknown>[] = [
     { accessorKey: 'revenue_date', header: t('date'), cell: ({ row }) => formatDate(row.original.revenue_date) },
@@ -109,18 +129,34 @@ export default function Revenue() {
           <DialogHeader><DialogTitle>{editing ? t('edit') : t('add')} · {t('revenue')}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-2 gap-4">
             <div className="space-y-1"><Label>{t('date')}</Label><Input type="date" {...register('revenue_date', { required: true })} /></div>
-            <div className="space-y-1"><Label>{t('type')}</Label>
-              <Select value={watch('type')} onValueChange={(v) => setValue('type', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="material">{t('rev_material')}</SelectItem>
-                  <SelectItem value="drink">{t('rev_drink')}</SelectItem>
-                  <SelectItem value="other">{t('rev_other')}</SelectItem>
-                  <SelectItem value="daily_total">{t('rev_daily_total')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-2 space-y-1"><Label>{t('amount')}</Label><Input type="number" step="any" {...register('amount', { required: true })} /></div>
+            {editing ? (
+              <>
+                <div className="space-y-1"><Label>{t('type')}</Label>
+                  <Select value={watch('type')} onValueChange={(v) => setValue('type', v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="material">{t('rev_material')}</SelectItem>
+                      <SelectItem value="drink">{t('rev_drink')}</SelectItem>
+                      <SelectItem value="other">{t('rev_other')}</SelectItem>
+                      <SelectItem value="daily_total">{t('rev_daily_total')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2 space-y-1"><Label>{t('amount')}</Label><Input type="number" step="any" {...register('amount', { required: true })} /></div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-1"><Label>{t('rev_material')}</Label><Input type="number" step="any" placeholder="0" {...register('amt_material')} /></div>
+                <div className="space-y-1"><Label>{t('rev_drink')}</Label><Input type="number" step="any" placeholder="0" {...register('amt_drink')} /></div>
+                <div className="space-y-1"><Label>{t('rev_other')}</Label><Input type="number" step="any" placeholder="0" {...register('amt_other')} /></div>
+                <div className="col-span-2 space-y-1"><Label>{t('rev_daily_total')}</Label><Input type="number" step="any" placeholder="0" {...register('amt_daily_total')} /></div>
+                <div className="col-span-2 flex items-center justify-between rounded-xl border bg-muted/30 p-3">
+                  <span className="text-sm text-muted-foreground">{t('total_revenue')}</span>
+                  <span className="text-lg font-extrabold text-primary">{formatMoney(createTotal)}</span>
+                </div>
+                <p className="col-span-2 -mt-1 text-xs text-muted-foreground">{t('rev_multi_hint')}</p>
+              </>
+            )}
             <div className="col-span-2 space-y-1"><Label>{t('remark')}</Label><Input {...register('remark')} /></div>
             <DialogFooter className="col-span-2">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>{t('cancel')}</Button>
