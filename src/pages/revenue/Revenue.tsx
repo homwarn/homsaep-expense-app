@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Plus, Pencil, Trash2, TrendingUp, Download, UtensilsCrossed, CupSoda, Boxes } from 'lucide-react'
+import { Plus, Pencil, Trash2, TrendingUp, Download, UtensilsCrossed, CupSoda, Boxes, CalendarDays } from 'lucide-react'
 import { PageHeader } from '@/components/common/PageHeader'
 import { DataTable } from '@/components/common/DataTable'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
@@ -29,7 +29,7 @@ export default function Revenue() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<any>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [sum, setSum] = useState({ material: 0, drink: 0, other: 0, month: 0 })
+  const [sum, setSum] = useState({ material: 0, drink: 0, other: 0, daily_total: 0, month: 0 })
   const { register, handleSubmit, reset, setValue, watch } = useForm<any>()
 
   async function load() {
@@ -41,14 +41,14 @@ export default function Revenue() {
       (data ?? [])
         .filter((r: any) => r.revenue_date >= monthStart && r.type === ty)
         .reduce((s: number, r: any) => s + Number(r.amount), 0)
-    const material = byType('material'), drink = byType('drink'), other = byType('other')
-    setSum({ material, drink, other, month: material + drink + other })
+    const material = byType('material'), drink = byType('drink'), other = byType('other'), daily_total = byType('daily_total')
+    setSum({ material, drink, other, daily_total, month: material + drink + other + daily_total })
     setLoading(false)
   }
   useEffect(() => { load() }, [])
 
   function openCreate() { setEditing(null); reset({ revenue_date: todayISO(), type: 'material', amount: 0, remark: '' }); setOpen(true) }
-  const typeLabel = (ty: string) => ty === 'material' ? t('rev_material') : ty === 'drink' ? t('rev_drink') : t('rev_other')
+  const typeLabel = (ty: string) => ty === 'material' ? t('rev_material') : ty === 'drink' ? t('rev_drink') : ty === 'daily_total' ? t('rev_daily_total') : t('rev_other')
   function openEdit(r: any) { setEditing(r); reset(r); setOpen(true) }
 
   async function onSubmit(v: any) {
@@ -69,7 +69,7 @@ export default function Revenue() {
 
   const columns: ColumnDef<any, unknown>[] = [
     { accessorKey: 'revenue_date', header: t('date'), cell: ({ row }) => formatDate(row.original.revenue_date) },
-    { accessorKey: 'type', header: t('type'), cell: ({ row }) => <Badge variant={row.original.type === 'material' ? 'default' : row.original.type === 'drink' ? 'secondary' : 'warning'}>{typeLabel(row.original.type)}</Badge> },
+    { accessorKey: 'type', header: t('type'), cell: ({ row }) => <Badge variant={row.original.type === 'material' ? 'default' : row.original.type === 'drink' ? 'secondary' : row.original.type === 'daily_total' ? 'success' : 'warning'}>{typeLabel(row.original.type)}</Badge> },
     { accessorKey: 'amount', header: t('amount'), cell: ({ row }) => <span className="font-semibold">{formatMoney(row.original.amount)}</span> },
     { accessorKey: 'remark', header: t('remark'), cell: ({ row }) => row.original.remark ?? '-' },
     {
@@ -94,10 +94,11 @@ export default function Revenue() {
         }
       />
       <p className="mb-2 text-sm text-muted-foreground">{t('monthly')} · {t('revenue')}</p>
-      <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard label={t('rev_material')} value={formatMoney(sum.material)} icon={UtensilsCrossed} tone="amber" loading={loading} />
         <StatCard label={t('rev_drink')} value={formatMoney(sum.drink)} icon={CupSoda} tone="sky" loading={loading} />
         <StatCard label={t('rev_other')} value={formatMoney(sum.other)} icon={Boxes} tone="violet" loading={loading} />
+        <StatCard label={t('rev_daily_total')} value={formatMoney(sum.daily_total)} icon={CalendarDays} tone="rose" loading={loading} />
         <StatCard label={t('total_revenue')} value={formatMoney(sum.month)} icon={TrendingUp} tone="emerald" loading={loading} />
       </div>
 
@@ -115,6 +116,7 @@ export default function Revenue() {
                   <SelectItem value="material">{t('rev_material')}</SelectItem>
                   <SelectItem value="drink">{t('rev_drink')}</SelectItem>
                   <SelectItem value="other">{t('rev_other')}</SelectItem>
+                  <SelectItem value="daily_total">{t('rev_daily_total')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -193,7 +193,7 @@ create trigger trg_repairs_updated before update on public.repairs
 create table if not exists public.revenues (
   id           uuid primary key default uuid_generate_v4(),
   revenue_date date not null default current_date,
-  type         text not null check (type in ('food','drink')),
+  type         text not null check (type in ('material','drink','other','daily_total')),
   amount       numeric(16,2) not null default 0 check (amount >= 0),
   remark       text,
   created_by   uuid references public.profiles(id) on delete set null,

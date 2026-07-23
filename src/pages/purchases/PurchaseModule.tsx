@@ -74,7 +74,7 @@ export function PurchaseModule({ config }: { config: Config }) {
   const [mappedIds, setMappedIds] = useState<Set<string>>(new Set())
   const [picked, setPicked] = useState<Record<string, Picked>>({})
   const [customLines, setCustomLines] = useState<Line[]>([])
-  const [pickBy, setPickBy] = useState<'supplier' | 'category'>('supplier')
+  const [pickBy, setPickBy] = useState<'supplier' | 'category' | 'date'>('supplier')
   const [browseCat, setBrowseCat] = useState('')
   const [formCurrency, setFormCurrency] = useState('LAK') // currency for manually entered amounts
 
@@ -123,7 +123,11 @@ export function PurchaseModule({ config }: { config: Config }) {
   )
 
   const supplierItemList = supplierId && mappedIds.size ? items.filter((i) => mappedIds.has(i.id)) : []
-  const displayList = pickBy === 'supplier' ? supplierItemList : (browseCat ? items.filter((i) => i.category_id === browseCat) : [])
+  const displayList = pickBy === 'supplier'
+    ? supplierItemList
+    : pickBy === 'category'
+      ? (browseCat ? items.filter((i) => i.category_id === browseCat) : [])
+      : [] // date mode → no checklist, manual entry only
   const displayGroups = useMemo(() => {
     const m = new Map<string, any[]>()
     displayList.forEach((it) => {
@@ -352,13 +356,14 @@ export function PurchaseModule({ config }: { config: Config }) {
           <div className="space-y-2">
             <Label><span className="mr-1 text-primary">2.</span>{t('supplier')} / {t('category')}</Label>
             {!editingId && (
-              <div className="flex rounded-xl border p-1 text-sm">
-                <button type="button" onClick={() => setPickBy('supplier')} className={cn('flex-1 rounded-lg px-3 py-1.5 font-medium', pickBy === 'supplier' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('by_supplier')}</button>
-                <button type="button" onClick={() => setPickBy('category')} className={cn('flex-1 rounded-lg px-3 py-1.5 font-medium', pickBy === 'category' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('by_category')}</button>
+              <div className="flex rounded-xl border p-1 text-xs sm:text-sm">
+                <button type="button" onClick={() => setPickBy('supplier')} className={cn('flex-1 rounded-lg px-2 py-1.5 font-medium', pickBy === 'supplier' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('by_supplier')}</button>
+                <button type="button" onClick={() => setPickBy('category')} className={cn('flex-1 rounded-lg px-2 py-1.5 font-medium', pickBy === 'category' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('by_category')}</button>
+                <button type="button" onClick={() => { setPickBy('date'); setPicked({}); setCustomLines((ls) => (ls.length ? ls : [emptyLine()])) }} className={cn('flex-1 rounded-lg px-2 py-1.5 font-medium', pickBy === 'date' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>{t('by_date')}</button>
               </div>
             )}
-            {(editingId || pickBy === 'supplier')
-              ? <Combobox value={supplierId} onChange={setSupplierId} placeholder={`— ${t('supplier')} —`} searchPlaceholder={t('search')}
+            {(editingId || pickBy === 'supplier' || pickBy === 'date')
+              ? <Combobox value={supplierId} onChange={setSupplierId} placeholder={`— ${pickBy === 'date' ? t('supplier_optional') : t('supplier')} —`} searchPlaceholder={t('search')}
                   options={suppliers.map((s) => ({ value: s.id, label: `${s.name}${s.contact_person ? ` · ${s.contact_person}` : ''}` }))} />
               : <Combobox value={browseCat} onChange={setBrowseCat} placeholder={`— ${t('category')} —`} searchPlaceholder={t('search')}
                   options={categories.map((c) => ({ value: c.id, label: c.name }))} />}
@@ -404,7 +409,8 @@ export function PurchaseModule({ config }: { config: Config }) {
               {/* item picker (driven by step 2 supplier/category selection) */}
               {!editingId && (
                 <div className="space-y-2">
-                  <Label><span className="mr-1 text-primary">5.</span>{t('supplied_items')}</Label>
+                  <Label><span className="mr-1 text-primary">5.</span>{pickBy === 'date' ? t('items_purchased') : t('supplied_items')}</Label>
+                  {pickBy === 'date' && <p className="rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground">{t('manual_entry_hint')}</p>}
                   {pickBy === 'supplier' && !supplierId && <p className="rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground">{t('select_supplier_first')}</p>}
                   {pickBy === 'supplier' && supplierId && supplierItemList.length === 0 && <p className="rounded-lg border border-dashed p-3 text-center text-sm text-muted-foreground">{t('no_mapped_hint')}</p>}
 

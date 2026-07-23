@@ -25,7 +25,8 @@ async function sumColumn(
 
 /** Aggregate revenue, expense & profit for a date range (inclusive). */
 export async function getTotals(from: string, to: string): Promise<RangeTotals> {
-  const [materialRevenue, drinkRevenue, otherRevenue, rm, dr, otherExp, repairs] = await Promise.all([
+  const [revenue, materialRevenue, drinkRevenue, otherRevenue, rm, dr, otherExp, repairs] = await Promise.all([
+    sumColumn('revenues', 'amount', 'revenue_date', from, to), // all types incl. daily_total
     sumColumn('revenues', 'amount', 'revenue_date', from, to, { col: 'type', val: 'material' }),
     sumColumn('revenues', 'amount', 'revenue_date', from, to, { col: 'type', val: 'drink' }),
     sumColumn('revenues', 'amount', 'revenue_date', from, to, { col: 'type', val: 'other' }),
@@ -34,7 +35,6 @@ export async function getTotals(from: string, to: string): Promise<RangeTotals> 
     sumColumn('expenses', 'amount', 'expense_date', from, to),
     sumColumn('repairs', 'total_cost', 'repair_date', from, to),
   ])
-  const revenue = materialRevenue + drinkRevenue + otherRevenue
   const expense = rm + dr + otherExp + repairs
   return { revenue, materialRevenue, drinkRevenue, otherRevenue, expense, profit: revenue - expense }
 }

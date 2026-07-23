@@ -157,6 +157,13 @@ export const translations = {
   add_other_item: { lo: 'ເພີ່ມລາຍການອື່ນ', en: 'Add other item' },
   by_supplier: { lo: 'ຕາມຜູ້ສະໜອງ', en: 'By supplier' },
   by_category: { lo: 'ຕາມໝວດ', en: 'By category' },
+  by_date: { lo: 'ຕາມວັນທີ', en: 'By date' },
+  items_purchased: { lo: 'ລາຍການທີ່ຊື້', en: 'Items purchased' },
+  manual_entry_hint: {
+    lo: 'ພິມລາຍການວັດຖຸດິບທີ່ຊື້ໃນວັນນີ້ໄດ້ໂດຍກົງ — ບໍ່ຕ້ອງເລືອກຜູ້ສະໜອງ ຫຼື ໝວດ ກ່ອນ (ຜູ້ສະໜອງເລືອກເສີມໄດ້)',
+    en: 'Type the items purchased on this date directly — no supplier or category needed first (supplier is optional)',
+  },
+  supplier_optional: { lo: 'ຜູ້ສະໜອງ (ບໍ່ບັງຄັບ)', en: 'Supplier (optional)' },
   price: { lo: 'ລາຄາ', en: 'Price' },
   exchange_rate: { lo: 'ອັດຕາແລກປ່ຽນ (→ກີບ)', en: 'Exchange rate (→LAK)' },
   exchange_rates: { lo: 'ອັດຕາແລກປ່ຽນ', en: 'Exchange Rates' },
@@ -185,6 +192,7 @@ export const translations = {
   rev_material: { lo: 'ຂາຍວັດຖຸດິບ', en: 'Material Sales' },
   rev_drink: { lo: 'ຂາຍເຄື່ອງດື່ມ', en: 'Drink Sales' },
   rev_other: { lo: 'ອື່ນໆ', en: 'Other' },
+  rev_daily_total: { lo: 'ລາຍຮັບລວມໃນມື້', en: 'Daily Total' },
 } as const
 
 export type TranslationKey = keyof typeof translations
